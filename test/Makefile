@@ -4,9 +4,7 @@ OPTS=-tmpdir out $(KOPTS)
 TESTOPTS=$(OPTS) -add-include '"testlib.h"' -I . testlib.c
 KRML=../krml
 
-all: Hoisting.exe Flat.exe Renaming.exe Vla.exe Inline.exe \
-  Private.exe ML16.exe Abbrev.exe \
-  Poly1305.exe Chacha20.exe
+all: Poly1305.exe Chacha20.exe
 	for f in $^; do echo $$f; ./$$f; done
 
 broken: Mutable.exe
