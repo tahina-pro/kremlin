@@ -180,7 +180,6 @@ let map #a #b output input l f =
   let h0 = HST.get() in
   let inv (h1: HS.mem) (i: nat): Type0 =
     live h1 output /\ live h1 input /\ modifies_1 output h0 h1 /\ i <= UInt32.v l
-    /\ (forall (j:nat). {:pattern (get h1 output j)} (j >= i /\ j < UInt32.v l) ==> get h1 output j == get h0 output j)
     /\ (forall (j:nat). {:pattern (get h1 output j)} j < i ==> get h1 output j == f (get h0 input j))
   in
   let f' (i:UInt32.t{ UInt32.( 0 <= v i /\ v i < v l ) }): Stack unit
