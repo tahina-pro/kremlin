@@ -115,6 +115,24 @@ let rec n_to_be len n =
     lemma_eq_intro b' (slice b 0 (U32.v len));
     b
 
+let n_to_be_spec
+  (len:U32.t)
+  (n:nat{n < pow2 (Prims.op_Multiply 8 (U32.v len))} )
+: Lemma
+  (requires (U32.v len > 0))
+  (ensures (
+    let n' = n / 256 in
+    let len' = U32.sub len 1ul in
+    n' < pow2 (Prims.op_Multiply 8 (U32.v len')) /\
+    slice (n_to_be len n) 0 (U32.v len - 1) == n_to_be len' n' /\
+    U8.v (index (n_to_be len n) (U32.v len - 1)) == n % 256
+  ))
+= let n' = n / 256 in
+  let len' = U32.sub len 1ul in
+  FStar.Math.Lemmas.pow2_plus 8 (Prims.op_Multiply 8 (U32.v len'));
+  assert(n' < pow2 (Prims.op_Multiply 8 (U32.v len')));
+  lemma_eq_intro (n_to_be len' n') (slice (n_to_be len n) 0 (U32.v len'))
+
 let n_to_le_inj (len:U32.t) (n1 n2: (n:nat{n < pow2 (8 * U32.v len)})) :
   Lemma (requires (n_to_le len n1 == n_to_le len n2))
         (ensures (n1 == n2)) =
