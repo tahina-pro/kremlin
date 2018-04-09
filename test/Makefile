@@ -198,7 +198,7 @@ endef
 $(foreach alg,$(HACL_ALGS),$(eval $(call HACL_template,$(alg))))
 
 clean:
-	rm -rf *.exe *.dSYM *.out *.wasm *.krml $(WEB_DIR)
+	rm -rf *.exe *.dSYM *.out *.wasm *.krml $(WEB_DIR) $(OUTPUT_DIR) .depend $(CACHE_DIR)
 
 distclean: clean clean-hacl
 	$(MAKE) -C $(HACL_HOME)/secure_api clean

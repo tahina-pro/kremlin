@@ -164,6 +164,28 @@ let lemma_distinct_addrs_distinct_types3 #a #b #rel1 #rel2 h r1 r2 =
     Classical.move_requires (lemma_distinct_addrs_distinct_types2 #a #b #rel1 #rel2 (Map.sel h.HS.h (HS.frameOf r1)) (HS.as_ref r1)) (HS.as_ref r2)
   else ()
 
+val lemma_distinct_addrs_distinct_types4
+  (#a:Type0) (#b:Type0) (#rel1: Preorder.preorder a) (#rel2: Preorder.preorder b) (h: HS.mem) (r1: HS.mreference a rel1) (r2:HS.mreference b rel2)
+  :Lemma ((h `HS.contains` r1 /\ h `HS.contains` r2 /\ HS.frameOf r1 == HS.frameOf r2 /\ HS.as_addr r1 == HS.as_addr r2) ==> a == b)
+
+let lemma_distinct_addrs_distinct_types4 #a #b #rel1 #rel2 h r1 r2 =
+  lemma_distinct_addrs_distinct_types3 h r1 r2
+
+let mreference_distinct_sel_disjoint
+  (#a:Type0) (#rel1: Preorder.preorder a) (#rel2: Preorder.preorder a) (h: HS.mem) (r1: HS.mreference a rel1) (r2:HS.mreference a rel2)
+  (h: HS.mem)
+: Lemma
+  ((
+    h `HS.contains` r1 /\
+    h `HS.contains` r2 /\
+    HS.frameOf r1 == HS.frameOf r2 /\
+    HS.as_addr r1 == HS.as_addr r2
+  ))
+  (ensures (
+    HS.sel h r1 = 
+  ))
+
+
 let buffer_distinct_sel_disjoint
   (#a1 #a2: Type)
   (b1: B.buffer a1)
@@ -180,11 +202,11 @@ let buffer_distinct_sel_disjoint
   (ensures (
     B.disjoint b1 b2
   ))
-= if B.frameOf b1 = B.frameOf b2
+= if B.frameOf b1 = B.frameOf b2 && B.as_addr b1 = B.as_addr b2
   then begin
-    lemma_distinct_addrs_distinct_types3 h (B.content b1) (B.content b2);
+    lemma_distinct_addrs_distinct_types4 h (B.content b1) (B.content b2);
     Heap.lemma_distinct_addrs_distinct_mm ();
-    assume (B.disjoint b1 b2)
+    assert (B.disjoint b1 b2)
   end
   else ()
 
