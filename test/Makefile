@@ -28,6 +28,7 @@ FILES		= \
   ProperErasure.test EmptyStruct.test IfDef.test StringLit.test IfThenElse.test \
   Macro.test Mini.test Endianness.test Printf.test ConstBuffer.test Failure.test \
   Comment.test \
+  RenameLet.test \
   VariableMerge.test
 ifeq ($(RECENT_GCC),"yes")
   FILES 	+= Debug.test
