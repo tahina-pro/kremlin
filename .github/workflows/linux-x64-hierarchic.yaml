@@ -20,7 +20,7 @@ jobs:
           echo "CI_SLACK_CHANNEL=$(jq -c -r '.NotificationChannel' .docker/build/config.json)" >> $GITHUB_ENV
       - name: Determine the build flavor
         run: |
-          if docker image inspect fstar:local-branch-$FSTAR_BRANCH ; then echo KRML_CI_FLAVOR=hierarchic >> $GITHUB_ENV ; else echo KRML_CI_FLAVOR=standalone >> $GITHUB_ENV ; fi
+          echo KRML_CI_FLAVOR=standalone >> $GITHUB_ENV
       - name: Build Karamel and its dependencies
         run: |
           if { echo $GITHUB_REF_NAME | grep '/' ; } ; then
