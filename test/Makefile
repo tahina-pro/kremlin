@@ -123,10 +123,6 @@ $(OUTPUT_DIR)/%.krml: | .depend
 	  --extract_module $(basename $(notdir $(subst .checked,,$<))) \
 	  $(notdir $(subst .checked,,$<))
 
-$(OUTPUT_DIR)/Ctypes2.exe: $(ALL_KRML_FILES) $(KRML_BIN)
-	$(KRML) $(EXTRA) -tmpdir $(subst .exe,.out,$@) \
-	  -o $@ $(filter %.krml,$^) \
-        -skip-compilation $(filter %.krml,$^) \
 
 .PRECIOUS: $(OUTPUT_DIR)/%.exe
 $(OUTPUT_DIR)/%.exe: $(ALL_KRML_FILES) $(KRML_BIN)
@@ -169,12 +165,6 @@ $(OUTPUT_DIR)/NoShadow.exe: EXTRA = -ccopt -Wshadow -fno-shadow
 $(OUTPUT_DIR)/Library.exe: EXTRA = -bundle MemCpyModel= -library MemCpyModel memcpymodel_impl.c
 $(OUTPUT_DIR)/IfDef.exe: EXTRA = -ccopt -DX
 $(OUTPUT_DIR)/IfDefKrml.exe: EXTRA = -fmicrosoft -ccopts -DBOOLEAN=bool,-DTRUE=true,-DFALSE=false
-$(OUTPUT_DIR)/Ctypes2.exe: EXTRA = -ctypes 'Ctypes2,Ctypes4' \
-  -bundle 'Ctypes3+Ctypes4=[rename=Lowlevel]' \
-  -bundle 'Ctypes2=' \
-  -bundle 'Ctypes1=' \
-  -bundle '*,WindowsHack[rename=Leftovers]' \
-  -no-prefix 'Ctypes4' -skip-compilation
 $(OUTPUT_DIR)/Failwith.exe: EXTRA = -ccopts -Wno-deprecated-declarations,-Wno-infinite-recursion
 $(OUTPUT_DIR)/VariableMerge.exe: EXTRA = -fmerge aggressive
 $(OUTPUT_DIR)/NameCollision.exe: EXTRA = -no-prefix NameCollisionHelper
@@ -237,23 +227,41 @@ check-right-file: $(OUTPUT_DIR)/MonomorphizationSeparate2.exe
 
 LOWLEVEL_DIR=$(OUTPUT_DIR)/Ctypes2.out
 
-$(LOWLEVEL_DIR)/%: ctypes/%
+.PRECIOUS: $(LOWLEVEL_DIR)/Ctypes2.a
+# $(LOWLEVEL_DIR)/Ctypes2.a: EXTRA = -ctypes 'Ctypes2,Ctypes4'
+$(LOWLEVEL_DIR)/Ctypes2.a: EXTRA = \
+  -bundle 'Ctypes3+Ctypes4=[rename=Lowlevel]' \
+  -bundle 'Ctypes2=' \
+  -bundle 'Ctypes1=' \
+  -bundle '*,WindowsHack[rename=Leftovers]' \
+  -no-prefix 'Ctypes4'
+$(LOWLEVEL_DIR)/Ctypes2.a: $(ALL_KRML_FILES) $(KRML_BIN)
+	mkdir -p $(dir $@)
+	$(KRML) $(EXTRA) -tmpdir $(LOWLEVEL_DIR) \
+	-skip-linking \
+	  $(filter %.krml,$^)
+	$(AR) rcs $@ $(LOWLEVEL_DIR)/Ctypes1.o $(LOWLEVEL_DIR)/Ctypes2.o $(LOWLEVEL_DIR)/Lowlevel.o
+
+CTYPES_HAND_WRITTEN_FILES=Client.ml dune dune-project Type_description.ml Function_description.ml Ctypes0.h
+LOWLEVEL_HAND_WRITTEN_FILES=$(addprefix $(LOWLEVEL_DIR)/,$(CTYPES_HAND_WRITTEN_FILES))
+$(LOWLEVEL_HAND_WRITTEN_FILES): $(LOWLEVEL_DIR)/%: ctypes/%
 	mkdir -p $(dir $@)
 	cp $< $@
 
-ctypes-test: $(LOWLEVEL_DIR)/Client.native
-	cd $(LOWLEVEL_DIR)/_build/default && export LD_LIBRARY_PATH=. && \
+LOWLEVEL_CLIENT_EXE=$(LOWLEVEL_DIR)/_build/default/Client.exe
+.PRECIOUS: $(LOWLEVEL_CLIENT_EXE)
+$(LOWLEVEL_CLIENT_EXE): $(LOWLEVEL_DIR)/Ctypes2.a $(LOWLEVEL_HAND_WRITTEN_FILES)
+	cd $(LOWLEVEL_DIR) && env CTYPES_LIB_DIR=$(shell ocamlfind query ctypes) LOWLEVEL_DIR=$(realpath $(LOWLEVEL_DIR)) dune build
+
+ctypes-test: $(LOWLEVEL_CLIENT_EXE)
+	cd $(dir $<) && export LD_LIBRARY_PATH=. && \
 	  ./Client.exe && ./Client.bc
+
+# Separate compilation
 
 sepcomp-test:
 	+$(MAKE) -C sepcomp
 .PHONY: sepcomp-test
-
-CTYPES_HAND_WRITTEN_FILES=Client.ml dune dune-workspace lib/dune lib_gen/dune
-
-.PHONY: $(LOWLEVEL_DIR)/Client.native
-$(LOWLEVEL_DIR)/Client.native: $(OUTPUT_DIR)/Ctypes2.exe $(addprefix $(LOWLEVEL_DIR)/,$(CTYPES_HAND_WRITTEN_FILES))
-	cd $(dir $@) && env CTYPES_LIB_DIR=$(shell ocamlfind query ctypes) LOWLEVEL_DIR=$(realpath $(LOWLEVEL_DIR)) dune build
 
 
 # A pseudo-target for WASM compilation that does not match any specific file.

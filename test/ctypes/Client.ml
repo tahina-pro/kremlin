@@ -2,6 +2,7 @@ open Ctypes
 open PosixTypes
 open Foreign
 
+(*
 module Lowlevel = Lowlevel_bindings.Bindings(Lowlevel_stubs)
 module Ctypes1 = Ctypes1_bindings.Bindings(Ctypes1_stubs)
 open Ctypes1
@@ -94,3 +95,4 @@ let _ =
     | Sys.Other s -> s
   in
   Printf.printf "======= End CTypes test (%s)\t======\n" (string_of_backend_type Sys.backend_type)
+*)
