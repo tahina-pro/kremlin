@@ -739,7 +739,8 @@ and translate_expr_with_type (env: env) (e: Ast.expr) (t_ret: MiniRust.typ): env
       let t = translate_type env t in
       env, possibly_convert e1 (Ref (None, Mut, Slice t))
 
-  | EApp ({ node = ETApp ({ node = EQualified (["Pulse"; "Lib"; "Slice"], "from_array"); _ }, [], [], [ t ]); _ }, [e1; _e2]) ->
+  | EApp ({ node = ETApp ({ node = EQualified (["Pulse"; "Lib"; "MutableSlice"], "to_slice"); _ }, [], [], [ t ]); _ }, [e1])
+  | EApp ({ node = ETApp ({ node = EQualified (["Pulse"; "Lib"; "Slice"], "from_array"); _ }, [], [], [ t ]); _ }, [e1; _ (* e2: size *) ]) ->
       let env, e1 = translate_expr env e1 in
       let t = translate_type env t in
       env, possibly_convert e1 (Ref (None, Shared, Slice t))
