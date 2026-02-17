@@ -478,19 +478,17 @@ let sort_decls_within_files (files: Ast.files): Ast.files =
     ) (LidMap.empty, 0) decls |> fst in
     let arr = Array.of_list decls in
     let n = Array.length arr in
-    (* Separate into: forward DType decls, full DType decls, non-DType decls *)
-    let forward_indices = ref [] in
+    (* Separate full DType decls from everything else (forwards, functions, etc.) *)
     let full_dtype_indices = ref [] in
-    let non_dtype_indices = ref [] in
+    let other_indices = ref [] in
     Array.iteri (fun i d ->
       match d with
-      | DType (_, _, _, _, Forward _) -> forward_indices := i :: !forward_indices
-      | DType _ -> full_dtype_indices := i :: !full_dtype_indices
-      | _ -> non_dtype_indices := i :: !non_dtype_indices
+      | DType (_, _, _, _, (Flat _ | Variant _ | Union _ | Abbrev _ | Enum _)) ->
+          full_dtype_indices := i :: !full_dtype_indices
+      | _ -> other_indices := i :: !other_indices
     ) arr;
-    let forward_indices = List.rev !forward_indices in
     let full_dtype_indices = List.rev !full_dtype_indices in
-    let non_dtype_indices = List.rev !non_dtype_indices in
+    let other_indices = List.rev !other_indices in
     (* Build adjacency among full DType declarations *)
     let deps_of = Array.make n [] in
     List.iter (fun i ->
@@ -537,17 +535,60 @@ let sort_decls_within_files (files: Ast.files): Ast.files =
       match arr.(i) with
       | DType (lid, _, _, _, Forward _) -> Hashtbl.replace has_forward lid true
       | _ -> ()
-    ) forward_indices;
-    (* Generate Forward declarations for Flat/Variant/Union types that lack one *)
-    let extra_forwards = List.filter_map (fun i ->
+    ) other_indices;
+    (* Collect ALL type dependencies (including pointer) for each full DType *)
+    let all_deps type_def =
+      let deps = ref [] in
+      (object
+        inherit [_] iter
+        method! visit_TQualified _ lid = deps := lid :: !deps
+      end)#visit_type_def () type_def;
+      !deps
+    in
+    (* Track which lids are defined so far; generate forward declarations only
+       for types referenced (even by pointer) before their definition. *)
+    let defined = Hashtbl.create 16 in
+    List.iter (fun lid -> Hashtbl.replace defined lid true)
+      (List.filter_map (fun i -> match arr.(i) with
+        | DType (lid, _, _, _, Forward _) -> Some lid | _ -> None) other_indices);
+    let extra_forwards = ref [] in
+    let full_dtype_set = Hashtbl.create 16 in
+    List.iter (fun i ->
       match arr.(i) with
-      | DType (lid, flags, n_cgs, n, (Flat _ | Variant _ | Union _)) when
-          not (Hashtbl.mem has_forward lid) ->
-          Hashtbl.replace has_forward lid true;
-          Some (DType (lid, flags, n_cgs, n, Forward FStruct))
-      | _ -> None
-    ) (sorted_dtypes @ remaining_dtypes) in
-    (* Forward decls first, then sorted full DTypes, then non-DTypes *)
-    let order = forward_indices @ sorted_dtypes @ remaining_dtypes @ non_dtype_indices in
+      | DType (lid, _, _, _, (Flat _ | Variant _ | Union _)) ->
+          Hashtbl.replace full_dtype_set lid true
+      | _ -> ()
+    ) (sorted_dtypes @ remaining_dtypes);
+    List.iter (fun i ->
+      (match arr.(i) with
+       | DType (_, _, _, _, (Flat _ | Variant _ | Union _ as td)) ->
+           let refs = all_deps td in
+           List.iter (fun lid ->
+             if not (Hashtbl.mem defined lid) && not (Hashtbl.mem has_forward lid)
+                && Hashtbl.mem full_dtype_set lid then
+               match LidMap.find_opt lid lid_to_idx with
+               | Some j when j <> i ->
+                   (match arr.(j) with
+                    | DType (_, flags, n_cgs, n_params, (Flat _ | Variant _ | Union _)) ->
+                        Hashtbl.replace has_forward lid true;
+                        extra_forwards :=
+                          DType (lid, flags, n_cgs, n_params, Forward FStruct) :: !extra_forwards
+                    | _ -> ())
+               | _ -> ()
+           ) refs
+       | _ -> ());
+      (match arr.(i) with
+       | DType (lid, _, _, _, _) -> Hashtbl.replace defined lid true
+       | _ -> ())
+    ) (sorted_dtypes @ remaining_dtypes);
+    let extra_forwards = List.rev !extra_forwards in
+    (* Split other_indices into: Forward DType declarations, then the rest *)
+    let forward_others = List.filter (fun i ->
+      match arr.(i) with DType (_, _, _, _, Forward _) -> true | _ -> false
+    ) other_indices in
+    let non_forward_others = List.filter (fun i ->
+      match arr.(i) with DType (_, _, _, _, Forward _) -> false | _ -> true
+    ) other_indices in
+    let order = forward_others @ sorted_dtypes @ remaining_dtypes @ non_forward_others in
     name, extra_forwards @ List.map (fun i -> arr.(i)) order
   ) files
