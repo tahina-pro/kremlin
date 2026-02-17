@@ -782,6 +782,7 @@ Supported options:|}
 
 
     (* Translate to C*... *)
+    let files = Bundles.sort_decls_within_files files in
     let file_of_map = Bundle.mk_file_of files in
     let deps = Bundles.direct_dependencies_with_internal files file_of_map in
     let files = AstToCStar.mk_files files c_name_map ifdefs macros in
