@@ -15,35 +15,15 @@
 
 typedef void *FStar_Monotonic_Heap_tset;
 
-typedef struct FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option____bool_any_s
+typedef struct FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option_____bool_any_s
 {
   FStar_Pervasives_Native_option__Prims_string_tags _2;
   bool _3;
   void *_4;
 }
-FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option____bool_any;
-
-typedef struct
-FStar_Pervasives_Native_option__FStar_Pervasives_dtuple4____FStar_Pervasives_Native_option____bool_any_s
-{
-  FStar_Pervasives_Native_option__Prims_string_tags tag;
-  FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option____bool_any v;
-}
-FStar_Pervasives_Native_option__FStar_Pervasives_dtuple4____FStar_Pervasives_Native_option____bool_any;
-
-typedef struct FStar_Monotonic_Heap_heap_rec_s
-{
-  krml_checked_int_t next_addr;
-  FStar_Pervasives_Native_option__FStar_Pervasives_dtuple4____FStar_Pervasives_Native_option____bool_any
-  (*memory)(krml_checked_int_t x0);
-}
-FStar_Monotonic_Heap_heap_rec;
-
-typedef FStar_Monotonic_Heap_heap_rec FStar_Monotonic_Heap_heap;
+FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option_____bool_any;
 
 typedef void *FStar_Monotonic_Heap_equal;
-
-extern FStar_Monotonic_Heap_heap_rec FStar_Monotonic_Heap_emp;
 
 typedef void *FStar_Monotonic_Heap_contains;
 
@@ -66,13 +46,33 @@ typedef struct FStar_Monotonic_Heap_aref__s
 }
 FStar_Monotonic_Heap_aref_;
 
-typedef FStar_Monotonic_Heap_aref_ FStar_Monotonic_Heap_aref;
-
-extern FStar_Monotonic_Heap_aref_ FStar_Monotonic_Heap_dummy_aref;
-
 typedef void *FStar_Monotonic_Heap_aref_unused_in;
 
 typedef void *FStar_Monotonic_Heap_aref_live_at;
+
+typedef struct
+FStar_Pervasives_Native_option__FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option_____bool_any_s
+{
+  FStar_Pervasives_Native_option__Prims_string_tags tag;
+  FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option_____bool_any v;
+}
+FStar_Pervasives_Native_option__FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option_____bool_any;
+
+typedef FStar_Monotonic_Heap_aref_ FStar_Monotonic_Heap_aref;
+
+typedef struct FStar_Monotonic_Heap_heap_rec_s
+{
+  krml_checked_int_t next_addr;
+  FStar_Pervasives_Native_option__FStar_Pervasives_dtuple4_____FStar_Pervasives_Native_option_____bool_any
+  (*memory)(krml_checked_int_t x0);
+}
+FStar_Monotonic_Heap_heap_rec;
+
+typedef FStar_Monotonic_Heap_heap_rec FStar_Monotonic_Heap_heap;
+
+extern FStar_Monotonic_Heap_heap_rec FStar_Monotonic_Heap_emp;
+
+extern FStar_Monotonic_Heap_aref_ FStar_Monotonic_Heap_dummy_aref;
 
 extern void
 **FStar_Monotonic_Heap_ref_of(FStar_Monotonic_Heap_heap_rec h, FStar_Monotonic_Heap_aref_ a);

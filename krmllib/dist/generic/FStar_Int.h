@@ -13,15 +13,15 @@
 #include "krml/internal/compat.h"
 #include "krml/internal/target.h"
 
+typedef void *FStar_Int_size;
+
+typedef krml_checked_int_t FStar_Int_int_t;
+
 extern krml_checked_int_t FStar_Int_max_int(krml_checked_int_t n);
 
 extern krml_checked_int_t FStar_Int_min_int(krml_checked_int_t n);
 
 extern bool FStar_Int_fits(krml_checked_int_t x, krml_checked_int_t n);
-
-typedef void *FStar_Int_size;
-
-typedef krml_checked_int_t FStar_Int_int_t;
 
 extern krml_checked_int_t FStar_Int_op_Slash(krml_checked_int_t a, krml_checked_int_t b);
 

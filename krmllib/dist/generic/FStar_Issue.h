@@ -15,9 +15,9 @@
 #include "krml/internal/compat.h"
 #include "krml/internal/target.h"
 
-typedef Prims_string FStar_Issue_issue_level_string;
-
 typedef struct Prims_list__FStar_Pprint_document_s Prims_list__FStar_Pprint_document;
+
+typedef Prims_string FStar_Issue_issue_level_string;
 
 typedef struct Prims_list__FStar_Pprint_document_s
 {
@@ -27,16 +27,16 @@ typedef struct Prims_list__FStar_Pprint_document_s
 }
 Prims_list__FStar_Pprint_document;
 
-extern Prims_list__FStar_Pprint_document *FStar_Issue_message_of_issue(FStar_Issue_issue i);
-
-extern Prims_string FStar_Issue_level_of_issue(FStar_Issue_issue i);
-
 typedef struct FStar_Pervasives_Native_option__krml_checked_int_t_s
 {
   FStar_Pervasives_Native_option__Prims_string_tags tag;
   krml_checked_int_t v;
 }
 FStar_Pervasives_Native_option__krml_checked_int_t;
+
+extern Prims_list__FStar_Pprint_document *FStar_Issue_message_of_issue(FStar_Issue_issue i);
+
+extern Prims_string FStar_Issue_level_of_issue(FStar_Issue_issue i);
 
 extern FStar_Pervasives_Native_option__krml_checked_int_t
 FStar_Issue_number_of_issue(FStar_Issue_issue i);

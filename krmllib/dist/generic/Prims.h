@@ -12,6 +12,8 @@
 #include "krml/internal/compat.h"
 #include "krml/internal/target.h"
 
+typedef void *Prims_prop;
+
 extern krml_checked_int_t Prims_op_Multiply(krml_checked_int_t x, krml_checked_int_t y);
 
 extern krml_checked_int_t Prims_op_Division(krml_checked_int_t x, krml_checked_int_t y);
@@ -39,8 +41,6 @@ extern krml_checked_int_t Prims_abs(krml_checked_int_t x0);
 extern Prims_string Prims_strcat(Prims_string x0, Prims_string x1);
 
 extern Prims_string Prims_string_of_int(krml_checked_int_t x0);
-
-typedef void *Prims_prop;
 
 
 #define Prims_H_DEFINED

@@ -12,6 +12,13 @@
 #include "krml/internal/compat.h"
 #include "krml/internal/target.h"
 
+typedef struct K___krml_checked_int_t_krml_checked_int_t_s
+{
+  krml_checked_int_t fst;
+  krml_checked_int_t snd;
+}
+K___krml_checked_int_t_krml_checked_int_t;
+
 extern void LowStar_Printf_print_string(Prims_string uu___);
 
 extern void LowStar_Printf_print_char(FStar_Char_char uu___);
@@ -57,13 +64,6 @@ extern void LowStar_Printf_print_lmbuffer_i32(uint32_t l, int32_t *b);
 extern void LowStar_Printf_print_lmbuffer_i64(uint32_t l, int64_t *b);
 
 extern void LowStar_Printf_test(uint64_t m, uint32_t l, bool *x);
-
-typedef struct K___krml_checked_int_t_krml_checked_int_t_s
-{
-  krml_checked_int_t fst;
-  krml_checked_int_t snd;
-}
-K___krml_checked_int_t_krml_checked_int_t;
 
 extern void
 LowStar_Printf_test2(

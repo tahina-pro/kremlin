@@ -19,6 +19,12 @@ typedef struct Prims_list__bool_s Prims_list__bool;
 
 typedef uint8_t Prims_list__bool_tags;
 
+typedef Prims_list__bool *FStar_BitVector_bv_t;
+
+typedef void *FStar_BitVector_is_subset_vec;
+
+typedef void *FStar_BitVector_is_superset_vec;
+
 typedef struct Prims_list__bool_s
 {
   Prims_list__bool_tags tag;
@@ -26,8 +32,6 @@ typedef struct Prims_list__bool_s
   Prims_list__bool *tl;
 }
 Prims_list__bool;
-
-typedef Prims_list__bool *FStar_BitVector_bv_t;
 
 extern Prims_list__bool *FStar_BitVector_zero_vec(krml_checked_int_t n);
 
@@ -45,10 +49,6 @@ extern Prims_list__bool
 *FStar_BitVector_logor_vec(krml_checked_int_t n, Prims_list__bool *a, Prims_list__bool *b);
 
 extern Prims_list__bool *FStar_BitVector_lognot_vec(krml_checked_int_t n, Prims_list__bool *a);
-
-typedef void *FStar_BitVector_is_subset_vec;
-
-typedef void *FStar_BitVector_is_superset_vec;
 
 extern Prims_list__bool
 *FStar_BitVector_shift_left_vec(

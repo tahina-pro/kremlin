@@ -15,6 +15,10 @@
 
 typedef struct Prims_list__uint8_t_s Prims_list__uint8_t;
 
+typedef struct Prims_list__uint32_t_s Prims_list__uint32_t;
+
+typedef struct Prims_list__uint64_t_s Prims_list__uint64_t;
+
 typedef struct Prims_list__uint8_t_s
 {
   Prims_list__bool_tags tag;
@@ -22,6 +26,22 @@ typedef struct Prims_list__uint8_t_s
   Prims_list__uint8_t *tl;
 }
 Prims_list__uint8_t;
+
+typedef struct Prims_list__uint32_t_s
+{
+  Prims_list__bool_tags tag;
+  uint32_t hd;
+  Prims_list__uint32_t *tl;
+}
+Prims_list__uint32_t;
+
+typedef struct Prims_list__uint64_t_s
+{
+  Prims_list__bool_tags tag;
+  uint64_t hd;
+  Prims_list__uint64_t *tl;
+}
+Prims_list__uint64_t;
 
 KRML_DEPRECATED("FStar.Endianness.le_to_n")
 
@@ -71,16 +91,6 @@ KRML_DEPRECATED("FStar.Endianness.be_of_uint64")
 
 extern Prims_list__uint8_t *FStar_Krml_Endianness_be_of_uint64(uint64_t x);
 
-typedef struct Prims_list__uint32_t_s Prims_list__uint32_t;
-
-typedef struct Prims_list__uint32_t_s
-{
-  Prims_list__bool_tags tag;
-  uint32_t hd;
-  Prims_list__uint32_t *tl;
-}
-Prims_list__uint32_t;
-
 KRML_DEPRECATED("FStar.Endianness.seq_uint32_of_le")
 
 extern Prims_list__uint32_t
@@ -98,16 +108,6 @@ extern Prims_list__uint32_t
 KRML_DEPRECATED("FStar.Endianness.be_of_seq_uint32")
 
 extern Prims_list__uint8_t *FStar_Krml_Endianness_be_of_seq_uint32(Prims_list__uint32_t *s);
-
-typedef struct Prims_list__uint64_t_s Prims_list__uint64_t;
-
-typedef struct Prims_list__uint64_t_s
-{
-  Prims_list__bool_tags tag;
-  uint64_t hd;
-  Prims_list__uint64_t *tl;
-}
-Prims_list__uint64_t;
 
 KRML_DEPRECATED("FStar.Endianness.seq_uint64_of_le")
 

@@ -23,10 +23,6 @@ typedef void *FStar_ST_gst_wp;
 
 typedef void *FStar_ST_heap_rel;
 
-extern FStar_Monotonic_Heap_heap_rec FStar_ST_gst_get(void);
-
-extern void FStar_ST_gst_put(FStar_Monotonic_Heap_heap_rec h1);
-
 typedef void *FStar_ST_heap_predicate;
 
 typedef void *FStar_ST_stable;
@@ -41,9 +37,13 @@ typedef void *FStar_ST_st_wp;
 
 typedef void *FStar_ST_contains_pred;
 
-extern FStar_Monotonic_Heap_heap_rec FStar_ST_get(void);
-
 typedef void *FStar_ST_modifies_none;
+
+extern FStar_Monotonic_Heap_heap_rec FStar_ST_gst_get(void);
+
+extern void FStar_ST_gst_put(FStar_Monotonic_Heap_heap_rec h1);
+
+extern FStar_Monotonic_Heap_heap_rec FStar_ST_get(void);
 
 
 #define FStar_ST_H_DEFINED

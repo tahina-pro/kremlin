@@ -13,9 +13,11 @@
 #include "krml/internal/compat.h"
 #include "krml/internal/target.h"
 
-typedef FStar_Char_char FStar_String_char;
-
 typedef struct Prims_list__FStar_Char_char_s Prims_list__FStar_Char_char;
+
+typedef struct Prims_list__Prims_string_s Prims_list__Prims_string;
+
+typedef FStar_Char_char FStar_String_char;
 
 typedef struct Prims_list__FStar_Char_char_s
 {
@@ -25,21 +27,7 @@ typedef struct Prims_list__FStar_Char_char_s
 }
 Prims_list__FStar_Char_char;
 
-extern Prims_list__FStar_Char_char *FStar_String_list_of_string(Prims_string uu___);
-
-extern Prims_string FStar_String_string_of_list(Prims_list__FStar_Char_char *uu___);
-
-extern krml_checked_int_t FStar_String_strlen(Prims_string s);
-
-extern krml_checked_int_t FStar_String_length(Prims_string s);
-
 typedef void *FStar_String_maxlen;
-
-extern Prims_string FStar_String_make(krml_checked_int_t l, FStar_Char_char uu___);
-
-extern Prims_string FStar_String_string_of_char(FStar_Char_char c);
-
-typedef struct Prims_list__Prims_string_s Prims_list__Prims_string;
 
 typedef struct Prims_list__Prims_string_s
 {
@@ -48,6 +36,18 @@ typedef struct Prims_list__Prims_string_s
   Prims_list__Prims_string *tl;
 }
 Prims_list__Prims_string;
+
+extern Prims_list__FStar_Char_char *FStar_String_list_of_string(Prims_string uu___);
+
+extern Prims_string FStar_String_string_of_list(Prims_list__FStar_Char_char *uu___);
+
+extern krml_checked_int_t FStar_String_strlen(Prims_string s);
+
+extern krml_checked_int_t FStar_String_length(Prims_string s);
+
+extern Prims_string FStar_String_make(krml_checked_int_t l, FStar_Char_char uu___);
+
+extern Prims_string FStar_String_string_of_char(FStar_Char_char c);
 
 extern Prims_list__Prims_string
 *FStar_String_split(Prims_list__FStar_Char_char *uu___, Prims_string uu___1);
