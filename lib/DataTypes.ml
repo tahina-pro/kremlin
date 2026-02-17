@@ -703,6 +703,23 @@ let remove_unit_fields = object (self)
     | TAny -> EAny
     | t -> Warn.fatal_error "default_value: %a" ptyp t
 
+  (* Pre-scan all DType declarations to populate erasable_fields before the
+     main transformation pass. This is needed because bundling +
+     monomorphization can place uses before definitions. *)
+  method collect_erasable_fields (files: files) =
+    List.iter (fun (_name, decls) ->
+      List.iter (fun d ->
+        match d with
+        | DType (lid, _flags, _n_cgs, _n, Variant branches) ->
+            List.iter (fun (cons, fields) ->
+              ignore (self#record_fields lid (Some cons) (fun x -> Some x) fields)
+            ) branches
+        | DType (lid, _flags, _n_cgs, _n, Flat fields) ->
+            ignore (self#record_fields lid None (fun x -> x) fields)
+        | _ -> ()
+      ) decls
+    ) files
+
   method! visit_DType _ lid flags n_cgs n type_def =
     match type_def with
     | Variant branches ->
@@ -722,15 +739,28 @@ let remove_unit_fields = object (self)
     in
     Variant branches
 
+  (* Record erasable fields in the hashtable without filtering. *)
+  method private record_fields:
+    'a. lident -> string option -> ('a -> ident option) -> ('a * (typ * bool)) list -> unit
+  = fun lid cons as_fieldopt fields ->
+    List.iteri (fun i (f, (t, _m)) ->
+      if self#is_erasable t then begin
+        Hashtbl.replace erasable_fields (lid, cons, (`Index i)) ();
+        match as_fieldopt f with
+        | Some f -> Hashtbl.replace erasable_fields (lid, cons, (`Field f)) ()
+        | None -> ()
+      end
+    ) fields
+
   method private rewrite_fields:
     'a. lident -> string option -> ('a -> ident option) -> ('a * (typ * bool)) list -> ('a * (typ * bool)) list
   = fun lid cons as_fieldopt fields ->
     KList.filter_mapi (fun i (f, (t, m)) ->
       if self#is_erasable t then begin
         (* We add the ability to lookup by index or field, as both are useful. *)
-        Hashtbl.add erasable_fields (lid, cons, (`Index i)) ();
+        Hashtbl.replace erasable_fields (lid, cons, (`Index i)) ();
         match as_fieldopt f with
-        | Some f -> Hashtbl.add erasable_fields (lid, cons, (`Field f)) ()
+        | Some f -> Hashtbl.replace erasable_fields (lid, cons, (`Field f)) ()
         | None -> (); ;
         None
       end else
@@ -1369,6 +1399,9 @@ let simplify files =
 (* Unit elimination, after monomorphization *)
 let optimize files =
   let files = remove_unit_buffers#visit_files () files in
+  (* Pre-scan all type declarations to handle out-of-order definitions caused
+     by bundling + monomorphization. *)
+  remove_unit_fields#collect_erasable_fields files;
   let files = remove_unit_fields#visit_files () files in
   files
 
