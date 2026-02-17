@@ -38,6 +38,7 @@ type env = {
   in_block: ident list;
   ifdefs: LidSet.t;
   macros: LidSet.t;
+  abbrevs: (lident, typ) Hashtbl.t;
 }
 
 let locate env loc =
@@ -50,6 +51,7 @@ let empty: env = {
   location = [];
   ifdefs = LidSet.empty;
   macros = LidSet.empty;
+  abbrevs = Hashtbl.create 0;
 }
 
 let reset_block env = {
@@ -62,7 +64,8 @@ let push env binder = CStar.{
   in_block = binder.name :: env.in_block;
   location = env.location;
   ifdefs = env.ifdefs;
-  macros = env.macros
+  macros = env.macros;
+  abbrevs = env.abbrevs
 }
 
 let pnames buf env =
@@ -75,6 +78,18 @@ let pnames buf env =
         Buffer.add_string buf ", ";
         Buffer.add_string buf name
       ) names
+
+(* Resolve type abbreviations to their underlying type, chasing through
+   multiple levels of Abbrev. Used to ensure mangle_enum sees the actual
+   enum type rather than an abbreviation alias. *)
+let rec resolve_typ abbrevs t =
+  match t with
+  | TQualified lid ->
+    begin match Hashtbl.find_opt abbrevs lid with
+    | Some t' -> resolve_typ abbrevs t'
+    | None -> t
+    end
+  | _ -> t
 
 let find env i =
   List.nth env.names i
@@ -381,7 +396,7 @@ and mk_expr env in_stmt under_initializer_list e =
   | EBound var ->
       CStar.Var (find env var)
   | EEnum lident ->
-      CStar.Qualified (GlobalNames.mangle_enum lident e.typ)
+      CStar.Qualified (GlobalNames.mangle_enum lident (resolve_typ env.abbrevs e.typ))
   | EQualified lident ->
       if LidSet.mem lident env.ifdefs then
         Warn.(maybe_fatal_error (KPrint.bsprintf "%a" Loc.ploc env.location, IfDef lident));
@@ -687,7 +702,7 @@ and mk_stmts env e ret_type =
           List.map (fun (lid, e) ->
             (match lid with
             | SConstant k -> `Int k
-            | SEnum lid -> `Ident (GlobalNames.mangle_enum lid e0.typ)
+            | SEnum lid -> `Ident (GlobalNames.mangle_enum lid (resolve_typ env.abbrevs e0.typ))
             | _ -> failwith "impossible"),
             mk_block env return_pos e
           ) branches, default) :: comment e0.meta @ acc
@@ -1027,7 +1042,14 @@ and mk_program m name env decls =
   List.rev decls
 
 and mk_files files m ifdefs macros =
-  let env = { empty with ifdefs; macros } in
+  let abbrevs = Hashtbl.create 41 in
+  List.iter (fun (_, decls) ->
+    List.iter (function
+      | DType (lid, _, _, _, Abbrev t) -> Hashtbl.replace abbrevs lid t
+      | _ -> ()
+    ) decls
+  ) files;
+  let env = { empty with ifdefs; macros; abbrevs } in
   List.map (fun file ->
     let name, program = file in
     name, mk_program m name env program
