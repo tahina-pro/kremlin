@@ -592,6 +592,7 @@ Supported options:|}
   let files = Monomorphization.functions files in
   if !arg_print_monomorphization then
     print PrintAst.print_files files;
+  let files = Inlining.inline_type_abbrevs files in
   let has_errors, files = Checker.check_everything ~warn:true files in
   tick_print (not has_errors) "Monomorphization";
 
