@@ -101,6 +101,8 @@ let no_return_else = ref false
 type merge = No | Prefix | Aggressive
 let merge_variables = ref No
 
+let hoist_locals = ref false
+
 let linux_ints = ref false
 let microsoft = ref false
 let extern_c = ref false

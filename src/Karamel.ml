@@ -338,6 +338,8 @@ Supported options:|}
       "  merge variables together rather than emit shadowing let-bindings; \
         prefix restricts merges to variables that share a common prefix; \
         aggressive always merges";
+    "-fhoist-locals", Arg.Set Options.hoist_locals, "  hoist all local variable \
+      declarations to the beginning of each function";
     "-fc89-scope", Arg.Set Options.c89_scope, "  use C89 scoping rules";
     "-fcast-allocations", Arg.Set Options.cast_allocations, "  cast allocations (for C89, or for C++)";
     "-fc++-compat", Arg.Set Options.cxx_compat, "  make the \
@@ -704,6 +706,7 @@ Supported options:|}
   let files = Simplify.simplify2 ifdefs files in
   let files = Inlining.mark_possibly_unused ifdefs files in
   let files = if Options.(!merge_variables <> No) then SimplifyMerge.simplify files else files in
+  let files = if !Options.hoist_locals then SimplifyHoist.simplify files else files in
   if !arg_print_structs then
     print PrintAst.print_files files;
   Structs.check_for_illegal_copies files;
