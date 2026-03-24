@@ -57,7 +57,8 @@ endif
 
 CUSTOM		= count-eq count-uu check-unused check-no-constructor check-no-erased \
   check-right-file count-deref check-global-init check-useless-alias check-inline-let \
-  check-comment check-ignore check-aggressive-inline check-malloca
+  check-comment check-ignore check-aggressive-inline check-malloca \
+  check-hoist-merge check-hoist-merge-inline
 
 ifneq ($(CRYPTO),)
   CRYPTO_WASM_FILES=Crypto.Symmetric.Chacha20.wasm-test
@@ -190,6 +191,8 @@ $(OUTPUT_DIR)/Ctypes2.exe: EXTRA = -ctypes 'Ctypes2,Ctypes4' \
   -no-prefix 'Ctypes4' -skip-compilation
 $(OUTPUT_DIR)/Failwith.exe: EXTRA = -ccopts -Wno-deprecated-declarations,-Wno-infinite-recursion
 $(OUTPUT_DIR)/VariableMerge.exe: EXTRA = -fmerge aggressive
+$(OUTPUT_DIR)/HoistLocals.exe: EXTRA = -fhoist-locals -fno-shadow
+$(OUTPUT_DIR)/HoistLocalsInline.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/NameCollision.exe: EXTRA = -no-prefix NameCollisionHelper
 $(OUTPUT_DIR)/Intro.exe $(OUTPUT_DIR)/MemCpy.exe: EXTRA = -rst-snippets
 $(OUTPUT_DIR)/StaticHeader.exe: EXTRA = -static-header StaticHeaderLib -bundle StaticHeaderAPI=StaticHeaderLib -warn-error @7@8
@@ -257,6 +260,27 @@ check-malloca: $(OUTPUT_DIR)/Malloca.exe
 	# Check that a single call to f remains.
 	N=$$(grep 'f()' $(OUTPUT_DIR)/Malloca.out/Malloca.c | wc -l) && \
 	  if [[ $$N -ne 1 ]]; then echo "Malloca.c seems to have several calls to f" >&2; false; fi
+
+# Test -fhoist-locals combined with -fmerge aggressive
+.PRECIOUS: $(OUTPUT_DIR)/HoistLocals_merge.exe
+$(OUTPUT_DIR)/HoistLocals_merge.exe: $(ALL_KRML_FILES) $(KRML_BIN)
+	$(call run-with-log, \
+	  $(KRML) -fhoist-locals -fmerge aggressive -fno-shadow -tmpdir $(subst .exe,.out,$@) -no-prefix HoistLocals \
+	    -o $@ $(filter %.krml,$^) -bundle HoistLocals=WindowsHack$(comma)\* \
+	,[KRML] HoistLocals_merge,$(OUTPUT_DIR)/HoistLocals_merge)
+
+check-hoist-merge: $(OUTPUT_DIR)/HoistLocals_merge.exe
+	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-hoist-merge]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-hoist-merge]" && false)
+
+.PRECIOUS: $(OUTPUT_DIR)/HoistLocalsInline_merge.exe
+$(OUTPUT_DIR)/HoistLocalsInline_merge.exe: $(ALL_KRML_FILES) $(KRML_BIN)
+	$(call run-with-log, \
+	  $(KRML) -fhoist-locals -fmerge aggressive -fno-shadow -tmpdir $(subst .exe,.out,$@) -no-prefix HoistLocalsInline \
+	    -o $@ $(filter %.krml,$^) -bundle HoistLocalsInline=WindowsHack$(comma)\* \
+	,[KRML] HoistLocalsInline_merge,$(OUTPUT_DIR)/HoistLocalsInline_merge)
+
+check-hoist-merge-inline: $(OUTPUT_DIR)/HoistLocalsInline_merge.exe
+	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-hoist-merge-inline]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-hoist-merge-inline]" && false)
 
 check-comment: $(OUTPUT_DIR)/Comment.exe
 	grep -q XXX1 $(OUTPUT_DIR)/Comment.out/Comment.c && \
