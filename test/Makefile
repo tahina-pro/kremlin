@@ -58,7 +58,7 @@ endif
 CUSTOM		= count-eq count-uu check-unused check-no-constructor check-no-erased \
   check-right-file count-deref check-global-init check-useless-alias check-inline-let \
   check-comment check-ignore check-aggressive-inline check-malloca \
-  check-hoist-merge check-hoist-merge-inline
+  check-hoist-merge check-hoist-merge-inline check-hoist-ifdef
 
 ifneq ($(CRYPTO),)
   CRYPTO_WASM_FILES=Crypto.Symmetric.Chacha20.wasm-test
@@ -194,6 +194,7 @@ $(OUTPUT_DIR)/VariableMerge.exe: EXTRA = -fmerge aggressive
 $(OUTPUT_DIR)/HoistLocals.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/HoistLocalsInline.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/HoistMergeETApp.exe: EXTRA = -fhoist-locals -fmerge prefix -fno-shadow
+$(OUTPUT_DIR)/HoistIfDef.exe: EXTRA = -fhoist-locals -fno-shadow -ccopt -DUSE_FEATURE
 $(OUTPUT_DIR)/NameCollision.exe: EXTRA = -no-prefix NameCollisionHelper
 $(OUTPUT_DIR)/Intro.exe $(OUTPUT_DIR)/MemCpy.exe: EXTRA = -rst-snippets
 $(OUTPUT_DIR)/StaticHeader.exe: EXTRA = -static-header StaticHeaderLib -bundle StaticHeaderAPI=StaticHeaderLib -warn-error @7@8
@@ -282,6 +283,14 @@ $(OUTPUT_DIR)/HoistLocalsInline_merge.exe: $(ALL_KRML_FILES) $(KRML_BIN)
 
 check-hoist-merge-inline: $(OUTPUT_DIR)/HoistLocalsInline_merge.exe
 	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-hoist-merge-inline]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-hoist-merge-inline]" && false)
+
+check-hoist-ifdef: $(OUTPUT_DIR)/HoistIfDef.exe
+	[ `grep -c 'KRML_MAYBE_UNUSED_VAR(a)' $(OUTPUT_DIR)/HoistIfDef.out/HoistIfDef.c` = 1 ]
+	[ `grep -c 'KRML_MAYBE_UNUSED_VAR(b)' $(OUTPUT_DIR)/HoistIfDef.out/HoistIfDef.c` = 1 ]
+	! grep -q 'KRML_MAYBE_UNUSED_VAR(c)' $(OUTPUT_DIR)/HoistIfDef.out/HoistIfDef.c
+	cc -Wunused-variable -Werror -std=c11 -g -fwrapv -D_BSD_SOURCE -D_DEFAULT_SOURCE \
+	  -I ../include -I ../krmllib/dist/minimal -I $(OUTPUT_DIR)/HoistIfDef.out \
+	  -c $(OUTPUT_DIR)/HoistIfDef.out/HoistIfDef.c -o /dev/null
 
 check-comment: $(OUTPUT_DIR)/Comment.exe
 	grep -q XXX1 $(OUTPUT_DIR)/Comment.out/Comment.c && \
