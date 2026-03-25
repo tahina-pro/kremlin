@@ -805,6 +805,7 @@ Supported options:|}
     (* Bundles.debug_deps deps; *)
     let ml_files  = GenCtypes.mk_ocaml_bindings files c_name_map file_of_map in
     let files = CStarToC11.mk_files c_name_map files in
+    let files = if !Options.hoist_locals then MarkMaybeUnused.mark_maybe_unused_files files else files in
     let files = List.filter (fun (_, decls) -> List.length decls > 0) files in
     tick_print true "CStarToC";
 
