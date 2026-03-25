@@ -57,7 +57,8 @@ endif
 
 CUSTOM		= count-eq count-uu check-unused check-no-constructor check-no-erased \
   check-right-file count-deref check-global-init check-useless-alias check-inline-let \
-  check-comment check-ignore check-aggressive-inline check-malloca
+  check-comment check-ignore check-aggressive-inline check-malloca \
+  check-hoist-ifdef
 
 ifneq ($(CRYPTO),)
   CRYPTO_WASM_FILES=Crypto.Symmetric.Chacha20.wasm-test
@@ -193,6 +194,7 @@ $(OUTPUT_DIR)/VariableMerge.exe: EXTRA = -fmerge aggressive
 $(OUTPUT_DIR)/SimplifyMergeETApp.exe: EXTRA = -fmerge aggressive
 $(OUTPUT_DIR)/HoistLocals.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/HoistLocalsInline.exe: EXTRA = -fhoist-locals -fno-shadow
+$(OUTPUT_DIR)/HoistIfDef.exe: EXTRA = -fhoist-locals -fno-shadow -ccopt -DUSE_FEATURE
 $(OUTPUT_DIR)/NameCollision.exe: EXTRA = -no-prefix NameCollisionHelper
 $(OUTPUT_DIR)/Intro.exe $(OUTPUT_DIR)/MemCpy.exe: EXTRA = -rst-snippets
 $(OUTPUT_DIR)/StaticHeader.exe: EXTRA = -static-header StaticHeaderLib -bundle StaticHeaderAPI=StaticHeaderLib -warn-error @7@8
@@ -260,6 +262,15 @@ check-malloca: $(OUTPUT_DIR)/Malloca.exe
 	# Check that a single call to f remains.
 	N=$$(grep 'f()' $(OUTPUT_DIR)/Malloca.out/Malloca.c | wc -l) && \
 	  if [[ $$N -ne 1 ]]; then echo "Malloca.c seems to have several calls to f" >&2; false; fi
+
+check-hoist-ifdef: $(OUTPUT_DIR)/HoistIfDef.exe
+	[ `grep -c 'KRML_MAYBE_UNUSED_VAR(a)' $(OUTPUT_DIR)/HoistIfDef.out/HoistIfDef.c` = 1 ]
+	[ `grep -c 'KRML_MAYBE_UNUSED_VAR(b)' $(OUTPUT_DIR)/HoistIfDef.out/HoistIfDef.c` = 1 ]
+	! grep -q 'KRML_MAYBE_UNUSED_VAR(c)' $(OUTPUT_DIR)/HoistIfDef.out/HoistIfDef.c
+	cc -Wunused-variable -Werror -std=c11 -g -fwrapv -D_BSD_SOURCE -D_DEFAULT_SOURCE \
+	  -I ../include -I ../krmllib/dist/minimal -I $(OUTPUT_DIR)/HoistIfDef.out \
+	  -c $(OUTPUT_DIR)/HoistIfDef.out/HoistIfDef.c -o /dev/null
+
 
 check-comment: $(OUTPUT_DIR)/Comment.exe
 	grep -q XXX1 $(OUTPUT_DIR)/Comment.out/Comment.c && \
