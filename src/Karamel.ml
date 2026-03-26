@@ -815,6 +815,7 @@ Supported options:|}
     let ml_files  = GenCtypes.mk_ocaml_bindings files c_name_map file_of_map in
     let files = CStarToC11.mk_files c_name_map files in
     let files = if !Options.hoist_locals then MarkMaybeUnused.mark_maybe_unused_files files else files in
+    let files = if !Options.hoist_locals then CoalesceAssigns.coalesce_files files else files in
     let files = match !Options.initialize_locals with
       | Options.No -> files
       | Options.C23 -> InitializeLocals.initialize_files InitializeLocals.C23 headers files

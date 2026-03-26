@@ -39,6 +39,14 @@ let with_struct (): St U32.t =
   let p = { fst = 3ul; snd = 4ul } in
   U32.(p.fst +%^ p.snd)
 
+(* Test: after hoisting+merge, x is reused: x = arg; y = x+1; x = y+1.
+   The coalesce pass must not lift y = x+1 past x = arg when x = arg
+   is kept as an assignment (because x is already initialized). *)
+let depends_on_assign (arg: U32.t): St U32.t =
+  let x = U32.(arg +%^ 1ul) in
+  let y = U32.(x +%^ 1ul) in
+  y
+
 let main (): St Int32.t =
   let r1 = simple () in
   TestLib.checku32 r1 3ul;
@@ -52,4 +60,5 @@ let main (): St Int32.t =
   TestLib.checku32 r5 1ul;
   let r6 = with_struct () in
   TestLib.checku32 r6 7ul;
-  0l
+  let r7 = depends_on_assign 5ul in
+  TestLib.checku32 r7 7ul;  0l

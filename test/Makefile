@@ -325,7 +325,7 @@ $(OUTPUT_DIR)/InitLocals_hoist_c99.exe: $(ALL_KRML_FILES) $(KRML_BIN)
 	,[KRML] InitLocals_hoist_c99,$(OUTPUT_DIR)/InitLocals_hoist_c99)
 
 check-init-hoist-c99: $(OUTPUT_DIR)/InitLocals_hoist_c99.exe
-	grep -q '\.fst = 0U' $(OUTPUT_DIR)/InitLocals_hoist_c99.out/InitLocals.c
+	! grep -q '= {  }' $(OUTPUT_DIR)/InitLocals_hoist_c99.out/InitLocals.c
 	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-init-hoist-c99]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-init-hoist-c99]" && false)
 
 # -finitialize-locals c89 + -fhoist-locals
@@ -351,7 +351,7 @@ $(OUTPUT_DIR)/InitLocals_hoist_merge.exe: $(ALL_KRML_FILES) $(KRML_BIN)
 	,[KRML] InitLocals_hoist_merge,$(OUTPUT_DIR)/InitLocals_hoist_merge)
 
 check-init-hoist-merge: $(OUTPUT_DIR)/InitLocals_hoist_merge.exe
-	grep -q '= {  }' $(OUTPUT_DIR)/InitLocals_hoist_merge.out/InitLocals.c
+	! grep -q '= {  }' $(OUTPUT_DIR)/InitLocals_hoist_merge.out/InitLocals.c
 	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-init-hoist-merge]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-init-hoist-merge]" && false)
 
 clean:
