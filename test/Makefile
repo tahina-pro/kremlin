@@ -58,7 +58,8 @@ endif
 CUSTOM		= count-eq count-uu check-unused check-no-constructor check-no-erased \
   check-right-file count-deref check-global-init check-useless-alias check-inline-let \
   check-comment check-ignore check-aggressive-inline check-malloca \
-  check-hoist-merge check-hoist-merge-inline check-hoist-ifdef
+  check-hoist-merge check-hoist-merge-inline check-hoist-ifdef \
+  check-init-hoist check-init-hoist-c99 check-init-hoist-c89 check-init-hoist-merge
 
 ifneq ($(CRYPTO),)
   CRYPTO_WASM_FILES=Crypto.Symmetric.Chacha20.wasm-test
@@ -195,6 +196,7 @@ $(OUTPUT_DIR)/HoistLocals.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/HoistLocalsInline.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/HoistMergeETApp.exe: EXTRA = -fhoist-locals -fmerge prefix -fno-shadow
 $(OUTPUT_DIR)/HoistIfDef.exe: EXTRA = -fhoist-locals -fno-shadow -ccopt -DUSE_FEATURE
+$(OUTPUT_DIR)/InitLocals.exe: EXTRA = -finitialize-locals c23
 $(OUTPUT_DIR)/NameCollision.exe: EXTRA = -no-prefix NameCollisionHelper
 $(OUTPUT_DIR)/Intro.exe $(OUTPUT_DIR)/MemCpy.exe: EXTRA = -rst-snippets
 $(OUTPUT_DIR)/StaticHeader.exe: EXTRA = -static-header StaticHeaderLib -bundle StaticHeaderAPI=StaticHeaderLib -warn-error @7@8
@@ -300,6 +302,57 @@ check-comment: $(OUTPUT_DIR)/Comment.exe
 
 check-ignore: $(OUTPUT_DIR)/KrmlTrue.exe
 	! grep -q IGNORE $(OUTPUT_DIR)/KrmlTrue.out/KrmlTrue.c
+
+# -finitialize-locals + -fhoist-locals with C23 mode
+.PRECIOUS: $(OUTPUT_DIR)/InitLocals_hoist.exe
+$(OUTPUT_DIR)/InitLocals_hoist.exe: $(ALL_KRML_FILES) $(KRML_BIN)
+	$(call run-with-log, \
+	  $(KRML) -finitialize-locals c23 -fhoist-locals -fno-shadow -tmpdir $(subst .exe,.out,$@) -no-prefix InitLocals \
+	    -o $@ $(filter %.krml,$^) -bundle InitLocals=WindowsHack$(comma)\* \
+	,[KRML] InitLocals_hoist,$(OUTPUT_DIR)/InitLocals_hoist)
+
+check-init-hoist: $(OUTPUT_DIR)/InitLocals_hoist.exe
+	grep -q '= {  }' $(OUTPUT_DIR)/InitLocals_hoist.out/InitLocals.c
+	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-init-hoist]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-init-hoist]" && false)
+
+# -finitialize-locals c99 + -fhoist-locals
+.PRECIOUS: $(OUTPUT_DIR)/InitLocals_hoist_c99.exe
+$(OUTPUT_DIR)/InitLocals_hoist_c99.exe: $(ALL_KRML_FILES) $(KRML_BIN)
+	$(call run-with-log, \
+	  $(KRML) -finitialize-locals c99 -fhoist-locals -fno-shadow -ccopt -std=c99 -ccopt -Werror \
+	    -tmpdir $(subst .exe,.out,$@) -no-prefix InitLocals \
+	    -o $@ $(filter %.krml,$^) -bundle InitLocals=WindowsHack$(comma)\* \
+	,[KRML] InitLocals_hoist_c99,$(OUTPUT_DIR)/InitLocals_hoist_c99)
+
+check-init-hoist-c99: $(OUTPUT_DIR)/InitLocals_hoist_c99.exe
+	grep -q '\.fst = 0U' $(OUTPUT_DIR)/InitLocals_hoist_c99.out/InitLocals.c
+	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-init-hoist-c99]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-init-hoist-c99]" && false)
+
+# -finitialize-locals c89 + -fhoist-locals
+.PRECIOUS: $(OUTPUT_DIR)/InitLocals_hoist_c89.exe
+$(OUTPUT_DIR)/InitLocals_hoist_c89.exe: $(ALL_KRML_FILES) $(KRML_BIN)
+	$(call run-with-log, \
+	  $(KRML) -finitialize-locals c89 -fhoist-locals -fno-shadow -fc89 \
+	    -tmpdir $(subst .exe,.out,$@) -no-prefix InitLocals \
+	    -o $@ $(filter %.krml,$^) -bundle InitLocals=WindowsHack$(comma)\* \
+	,[KRML] InitLocals_hoist_c89,$(OUTPUT_DIR)/InitLocals_hoist_c89)
+
+check-init-hoist-c89: $(OUTPUT_DIR)/InitLocals_hoist_c89.exe
+	! grep -q '\.fst = 0' $(OUTPUT_DIR)/InitLocals_hoist_c89.out/InitLocals.c
+	grep -q '{ 0U, 0U }' $(OUTPUT_DIR)/InitLocals_hoist_c89.out/InitLocals.c
+	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-init-hoist-c89]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-init-hoist-c89]" && false)
+
+# -finitialize-locals + -fhoist-locals + -fmerge aggressive
+.PRECIOUS: $(OUTPUT_DIR)/InitLocals_hoist_merge.exe
+$(OUTPUT_DIR)/InitLocals_hoist_merge.exe: $(ALL_KRML_FILES) $(KRML_BIN)
+	$(call run-with-log, \
+	  $(KRML) -finitialize-locals c23 -fhoist-locals -fmerge aggressive -fno-shadow -tmpdir $(subst .exe,.out,$@) -no-prefix InitLocals \
+	    -o $@ $(filter %.krml,$^) -bundle InitLocals=WindowsHack$(comma)\* \
+	,[KRML] InitLocals_hoist_merge,$(OUTPUT_DIR)/InitLocals_hoist_merge)
+
+check-init-hoist-merge: $(OUTPUT_DIR)/InitLocals_hoist_merge.exe
+	grep -q '= {  }' $(OUTPUT_DIR)/InitLocals_hoist_merge.out/InitLocals.c
+	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-init-hoist-merge]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-init-hoist-merge]" && false)
 
 clean:
 	rm -rf $(WEB_DIR) .output
