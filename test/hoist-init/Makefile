@@ -146,6 +146,13 @@ check-merge-decl-init: $(OUTPUT_DIR)/MergeDeclInit.exe
 	grep -q 'uint32_t r;' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
 	grep -q 'uint32_t x = 1U' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
 	grep -q 'uint32_t y = x + x' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	# test_comment_between: comment preserved, declarations merged
+	grep -q 'standalone comment between a and b' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t b = a + a' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	# test_multi_comment: all three comments preserved, declarations merged
+	grep -q 'comment at start' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'comment after a' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'comment after b' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
 	@echo -e "\033[01;32m✔\033[00m [TEST,check-merge-decl-init]"
 
 clean:
