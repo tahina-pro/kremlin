@@ -153,6 +153,13 @@ check-merge-decl-init: $(OUTPUT_DIR)/MergeDeclInit.exe
 	grep -q 'comment at start' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
 	grep -q 'comment after a' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
 	grep -q 'comment after b' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	# test_unused_param: KRML_MAYBE_UNUSED_VAR preserved, declarations merged
+	grep -q 'KRML_MAYBE_UNUSED_VAR(unused)' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t a = arg + 1U' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	# test_two_unused: both KRML_MAYBE_UNUSED_VAR preserved, declarations merged
+	[ `grep -c 'KRML_MAYBE_UNUSED_VAR' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c` -ge 4 ]
+	# test_unused_and_comment: mixed skippables preserved, declarations merged
+	grep -q 'comment after ignore' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
 	@echo -e "\033[01;32m✔\033[00m [TEST,check-merge-decl-init]"
 
 clean:

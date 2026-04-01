@@ -95,8 +95,8 @@ let vars_of_declaration ((_, _, _, _, _, di): C.declaration): SSet.t =
 let is_skippable (s: C.stmt): bool =
   match s with
   | Comment _ -> true
-  | Expr (C.Call (C.Name n, _)) when String.length n >= 18 &&
-      String.sub n 0 18 = "KRML_MAYBE_UNUSED" -> true
+  | Expr (C.Call (C.Name n, _))
+    when KString.starts_with n "KRML_MAYBE_UNUSED" -> true
   | _ -> false
 
 (** Try to perform one merge step on the top-level statement list of a

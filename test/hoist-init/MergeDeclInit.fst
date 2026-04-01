@@ -9,6 +9,7 @@ open FStar.HyperStack.ST
 
 module U32 = FStar.UInt32
 module LC = LowStar.Comment
+module LI = LowStar.Ignore
 
 (* All sequential bindings should merge back after hoisting.
    Using each variable more than once to prevent inlining. *)
@@ -69,6 +70,30 @@ let test_multi_comment (): St U32.t =
   let c = U32.(b +%^ a) in
   U32.(c +%^ b)
 
+(* An unused parameter generates KRML_MAYBE_UNUSED_VAR;
+   the merge pass should skip it and still merge the bindings. *)
+let test_unused_param (unused: U32.t) (arg: U32.t): St U32.t =
+  LI.ignore unused;
+  let a = U32.(arg +%^ 1ul) in
+  let b = U32.(a +%^ a) in
+  U32.(b +%^ a)
+
+(* Two unused parameters before bindings *)
+let test_two_unused (u1: U32.t) (u2: U32.t) (arg: U32.t): St U32.t =
+  LI.ignore u1;
+  LI.ignore u2;
+  let a = U32.(arg +%^ 1ul) in
+  let b = U32.(a +%^ a) in
+  U32.(b +%^ a)
+
+(* Mix of unused parameter, comment and bindings *)
+let test_unused_and_comment (unused: U32.t) (arg: U32.t): St U32.t =
+  LI.ignore unused;
+  LC.comment "comment after ignore";
+  let a = U32.(arg +%^ 1ul) in
+  let b = U32.(a +%^ a) in
+  U32.(b +%^ a)
+
 let main (): St Int32.t =
   let r1 = test_all_merge () in
   TestLib.checku32 r1 5ul;
@@ -86,4 +111,13 @@ let main (): St Int32.t =
   TestLib.checku32 r7 23ul;
   let r8 = test_multi_comment () in
   TestLib.checku32 r8 5ul;
+  (* test_unused_param: a=2, b=4, ret=6 *)
+  let r9 = test_unused_param 99ul 1ul in
+  TestLib.checku32 r9 6ul;
+  (* test_two_unused: a=2, b=4, ret=6 *)
+  let r10 = test_two_unused 99ul 88ul 1ul in
+  TestLib.checku32 r10 6ul;
+  (* test_unused_and_comment: a=2, b=4, ret=6 *)
+  let r11 = test_unused_and_comment 99ul 1ul in
+  TestLib.checku32 r11 6ul;
   0l
