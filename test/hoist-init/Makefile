@@ -20,7 +20,8 @@ FSTAR		= $(FSTAR_EXE) \
 FILES		= $(patsubst %.fst,%.test,$(wildcard *.fst))
 
 CUSTOM		= check-hoist-ifdef \
-  check-init-hoist check-init-hoist-c99 check-init-hoist-c89
+  check-init-hoist check-init-hoist-c99 check-init-hoist-c89 \
+  check-merge-decl-init
 
 all: $(FILES) $(CUSTOM)
 
@@ -64,6 +65,7 @@ $(OUTPUT_DIR)/HoistLocals.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/HoistLocalsInline.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/HoistIfDef.exe: EXTRA = -fhoist-locals -fno-shadow -ccopt -DUSE_FEATURE
 $(OUTPUT_DIR)/InitLocals.exe: EXTRA = -finitialize-locals c23
+$(OUTPUT_DIR)/MergeDeclInit.exe: EXTRA = -fhoist-locals -fno-shadow
 
 .PRECIOUS: $(OUTPUT_DIR)/%.exe
 $(OUTPUT_DIR)/%.exe: $(ALL_KRML_FILES) $(KRML_BIN)
@@ -110,7 +112,8 @@ $(OUTPUT_DIR)/InitLocals_hoist_c99.exe: $(ALL_KRML_FILES) $(KRML_BIN)
 	,[KRML] InitLocals_hoist_c99,$(OUTPUT_DIR)/InitLocals_hoist_c99)
 
 check-init-hoist-c99: $(OUTPUT_DIR)/InitLocals_hoist_c99.exe
-	grep -q '\.fst = 0U' $(OUTPUT_DIR)/InitLocals_hoist_c99.out/InitLocals.c
+	grep -q '\.fst = 3U' $(OUTPUT_DIR)/InitLocals_hoist_c99.out/InitLocals.c
+	grep -q '= 0U' $(OUTPUT_DIR)/InitLocals_hoist_c99.out/InitLocals.c
 	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-init-hoist-c99]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-init-hoist-c99]" && false)
 
 # -finitialize-locals c89 + -fhoist-locals
@@ -126,6 +129,24 @@ check-init-hoist-c89: $(OUTPUT_DIR)/InitLocals_hoist_c89.exe
 	! grep -q '\.fst = 0' $(OUTPUT_DIR)/InitLocals_hoist_c89.out/InitLocals.c
 	grep -q '{ 0U, 0U }' $(OUTPUT_DIR)/InitLocals_hoist_c89.out/InitLocals.c
 	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-init-hoist-c89]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-init-hoist-c89]" && false)
+
+# MergeDeclInit: verify that declarations are merged back with initializers
+check-merge-decl-init: $(OUTPUT_DIR)/MergeDeclInit.exe
+	# test_all_merge: all declarations have initializers
+	grep -q 'uint32_t a = 1U' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t b = a + a' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t c = b + a' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	# test_chain: chain of 4 declarations all merged
+	grep -q 'uint32_t w = 1U' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t x = w + w' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t y = x + w' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t z = y + x' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	# test_partial: x and y merged, r0 and r not merged (assigned inside branches)
+	grep -q 'uint32_t r0;' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t r;' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t x = 1U' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	grep -q 'uint32_t y = x + x' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
+	@echo -e "\033[01;32m✔\033[00m [TEST,check-merge-decl-init]"
 
 clean:
 	rm -rf $(CACHE_DIR) $(OUTPUT_DIR) .depend
