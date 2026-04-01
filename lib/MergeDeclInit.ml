@@ -92,21 +92,28 @@ let vars_of_declaration ((_, _, _, _, _, di): C.declaration): SSet.t =
     match init with Some i -> SSet.union acc (vars_of_init i) | None -> acc
   ) SSet.empty di
 
+let is_skippable (s: C.stmt): bool =
+  match s with
+  | Comment _ -> true
+  | Expr (C.Call (C.Name n, _)) when String.length n >= 18 &&
+      String.sub n 0 18 = "KRML_MAYBE_UNUSED" -> true
+  | _ -> false
+
 (** Try to perform one merge step on the top-level statement list of a
-    function body.  Scans the prefix of [Decl] and [Comment] statements;
-    if the first non-[Decl]/non-[Comment] is an assignment [y = w] whose
-    target [y] is declared without initializer and [y] does not appear in
-    any declaration initializer, merge them.  Returns [Some stmts'] on
-    success. *)
+    function body.  Scans the prefix of [Decl], [Comment] and
+    [KRML_MAYBE_UNUSED*] statements; if the first remaining statement is
+    an assignment [y = w] whose target [y] is declared without initializer
+    and [y] does not appear in any declaration initializer, merge them.
+    Returns [Some stmts'] on success. *)
 let try_merge_one (stmts: C.stmt list): C.stmt list option =
-  let rec split_prefix rev_decls rev_comments (ss: C.stmt list) = match ss with
+  let rec split_prefix rev_decls rev_skipped (ss: C.stmt list) = match ss with
     | (Decl d : C.stmt) :: rest ->
-        split_prefix (d :: rev_decls) rev_comments rest
-    | (Comment _ as c : C.stmt) :: rest ->
-        split_prefix rev_decls (c :: rev_comments) rest
-    | rest -> (List.rev rev_decls, List.rev rev_comments, rest)
+        split_prefix (d :: rev_decls) rev_skipped rest
+    | s :: rest when is_skippable s ->
+        split_prefix rev_decls (s :: rev_skipped) rest
+    | rest -> (List.rev rev_decls, List.rev rev_skipped, rest)
   in
-  let decls, comments, rest = split_prefix [] [] stmts in
+  let decls, skipped, rest = split_prefix [] [] stmts in
   match (rest : C.stmt list) with
   | Expr (C.Assign (C.Name y, w)) :: after ->
       let init_vars = List.fold_left
@@ -126,7 +133,7 @@ let try_merge_one (stmts: C.stmt list): C.stmt list option =
               in
               Some (List.map (fun d -> (Decl d : C.stmt))
                       (List.rev_append rev_acc rest)
-                    @ comments @ [(Decl merged : C.stmt)] @ after)
+                    @ skipped @ [(Decl merged : C.stmt)] @ after)
           | d :: rest -> find (d :: rev_acc) rest
         in
         find [] decls
