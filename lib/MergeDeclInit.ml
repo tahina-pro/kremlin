@@ -126,7 +126,7 @@ let try_merge_one (stmts: C.stmt list): C.stmt list option =
               in
               Some (List.map (fun d -> (Decl d : C.stmt))
                       (List.rev_append rev_acc rest)
-                    @ [(Decl merged : C.stmt)] @ comments @ after)
+                    @ comments @ [(Decl merged : C.stmt)] @ after)
           | d :: rest -> find (d :: rev_acc) rest
         in
         find [] decls
