@@ -93,16 +93,20 @@ let vars_of_declaration ((_, _, _, _, _, di): C.declaration): SSet.t =
   ) SSet.empty di
 
 (** Try to perform one merge step on the top-level statement list of a
-    function body.  Scans the prefix of [Decl] statements; if the first
-    non-[Decl] is an assignment [y = w] whose target [y] is declared
-    without initializer and [y] does not appear in any declaration
-    initializer, merge them.  Returns [Some stmts'] on success. *)
+    function body.  Scans the prefix of [Decl] and [Comment] statements;
+    if the first non-[Decl]/non-[Comment] is an assignment [y = w] whose
+    target [y] is declared without initializer and [y] does not appear in
+    any declaration initializer, merge them.  Returns [Some stmts'] on
+    success. *)
 let try_merge_one (stmts: C.stmt list): C.stmt list option =
-  let rec split_prefix rev_decls (ss: C.stmt list) = match ss with
-    | (Decl d : C.stmt) :: rest -> split_prefix (d :: rev_decls) rest
-    | rest -> (List.rev rev_decls, rest)
+  let rec split_prefix rev_decls rev_comments (ss: C.stmt list) = match ss with
+    | (Decl d : C.stmt) :: rest ->
+        split_prefix (d :: rev_decls) rev_comments rest
+    | (Comment _ as c : C.stmt) :: rest ->
+        split_prefix rev_decls (c :: rev_comments) rest
+    | rest -> (List.rev rev_decls, List.rev rev_comments, rest)
   in
-  let decls, rest = split_prefix [] stmts in
+  let decls, comments, rest = split_prefix [] [] stmts in
   match (rest : C.stmt list) with
   | Expr (C.Assign (C.Name y, w)) :: after ->
       let init_vars = List.fold_left
@@ -122,7 +126,7 @@ let try_merge_one (stmts: C.stmt list): C.stmt list option =
               in
               Some (List.map (fun d -> (Decl d : C.stmt))
                       (List.rev_append rev_acc rest)
-                    @ [(Decl merged : C.stmt)] @ after)
+                    @ [(Decl merged : C.stmt)] @ comments @ after)
           | d :: rest -> find (d :: rev_acc) rest
         in
         find [] decls
