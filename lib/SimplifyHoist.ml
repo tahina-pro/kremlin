@@ -283,6 +283,29 @@ let wrap_with_hoisted (binders: (binder * expr) list) (body: expr): expr =
       meta = [] }
   ) binders body
 
+(* Insert hoisted declarations after the prefix of the function body.
+   The prefix consists of non-MetaSequence ELet nodes (declarations) whose
+   initializers don't contain hoisted binders, plus MetaSequence ELet nodes
+   for transparent statements (comments, EIgnore). *)
+let insert_after_prefix (hoisted: (binder * expr) list) (body: expr): expr =
+  if hoisted = [] then body
+  else
+    let rec find_insertion_point e =
+      match e.node with
+      | ELet (b, e1, e2) when not (List.mem MetaSequence b.node.meta) ->
+          (* Non-sequence let = declaration. Keep in prefix, recurse into e2. *)
+          let e2' = find_insertion_point e2 in
+          { e with node = ELet (b, e1, e2') }
+      | ELet (b, e1, e2) when is_prefix_transparent e1 ->
+          (* Transparent sequence statement (comment, EIgnore). Keep in prefix. *)
+          let e2' = find_insertion_point e2 in
+          { e with node = ELet (b, e1, e2') }
+      | _ ->
+          (* First non-prefix node: insert hoisted declarations here. *)
+          wrap_with_hoisted hoisted e
+    in
+    find_insertion_point body
+
 let hoist_visitor = object(_)
   inherit [_] map
   method! visit_DFunction () cc flags n_cgs n ret name binders body =
@@ -290,7 +313,7 @@ let hoist_visitor = object(_)
       KPrint.bprintf "Hoist locals: visiting %a\n%a\n" plid name ppexpr body;
     let binders, body = open_binders binders body in
     let hoisted, body = collect true body in
-    let body = wrap_with_hoisted hoisted body in
+    let body = insert_after_prefix hoisted body in
     let body = close_binders binders body in
     DFunction (cc, flags, n_cgs, n, ret, name, binders, body)
 end
