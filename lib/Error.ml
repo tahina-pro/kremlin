@@ -38,6 +38,7 @@ and raw_error =
   | UnrecognizedCCompiler of string
   | InitializerUnknownType of string
   | BufCreateLNotHoisted of lident
+  | BufCreateNonConstant of lident
 
 and location =
   string

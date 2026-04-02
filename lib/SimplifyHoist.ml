@@ -10,11 +10,15 @@ open PrintAst
 let debug = Options.debug "hoist-locals"
 
 (* Determines if an ELet binding involves stack storage that cannot be hoisted
-   at all. Only non-empty EBufCreateL with per-element initializers cannot
-   be hoisted. *)
+   at all: non-empty EBufCreateL with per-element initializers, or
+   EBufCreate with a non-constant size. *)
 let has_storage (_t: typ) (e1: expr) =
   match e1.node with
   | EBufCreateL (Stack, _ :: _) ->
+      true
+  | EBufCreate (Stack, _, { node = EConstant _; _ }) ->
+      false
+  | EBufCreate (Stack, _, _) ->
       true
   | _ ->
       false
@@ -45,10 +49,13 @@ let rec collect (e: expr): (binder * expr) list * expr =
       (* Collect from the continuation *)
       let bs2, e2 = collect e2 in
       if has_storage b.typ e1 then begin
-        (* Stack buffer with per-element initializers: keep in place, emit warning *)
+        (* Stack buffer that cannot be hoisted: emit appropriate warning *)
         (match e1.node with
          | EBufCreateL (Stack, _ :: _) ->
              Warn.maybe_fatal_error ("", Error.BufCreateLNotHoisted
+               ([""], b.node.name))
+         | EBufCreate (Stack, _, _) ->
+             Warn.maybe_fatal_error ("", Error.BufCreateNonConstant
                ([""], b.node.name))
          | _ -> ());
         let e2 = close_binder b e2 in
