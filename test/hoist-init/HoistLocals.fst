@@ -153,6 +153,51 @@ let shadow_nested_ite (a: bool) (arg: U32.t): Stack U32.t (fun _ -> true) (fun _
     U32.(y +%^ x)
   end
 
+module B = LowStar.Buffer
+open LowStar.BufferOps
+
+(* Stack-allocated buffer with uniform initializer: should be hoisted as
+   an uninitialized declaration + memset/fill at original site. *)
+let buf_create_fill (): Stack U32.t (fun _ -> true) (fun _ _ _ -> true) =
+  push_frame ();
+  let b = B.alloca 42ul 4ul in
+  let r = b.(0ul) in
+  pop_frame ();
+  r
+
+(* Stack-allocated buffer with uniform initializer, followed by a write *)
+let buf_create_write (): Stack U32.t (fun _ -> true) (fun _ _ _ -> true) =
+  push_frame ();
+  let b = B.alloca 0ul 4ul in
+  b.(0ul) <- 99ul;
+  let r = b.(0ul) in
+  pop_frame ();
+  r
+
+(* Stack-allocated buffer with a scalar + buffer in the same function *)
+let buf_and_scalar (): Stack U32.t (fun _ -> true) (fun _ _ _ -> true) =
+  push_frame ();
+  let x = 10ul in
+  let b = B.alloca x 2ul in
+  let r = U32.(b.(0ul) +%^ b.(1ul)) in
+  pop_frame ();
+  r
+
+(* Buffer inside a branch: hoisted declaration, fill in branch *)
+let buf_in_branch (flag: bool): Stack U32.t (fun _ -> true) (fun _ _ _ -> true) =
+  push_frame ();
+  if flag then begin
+    let b = B.alloca 5ul 2ul in
+    let r = U32.(b.(0ul) +%^ b.(1ul)) in
+    pop_frame ();
+    r
+  end else begin
+    let b = B.alloca 7ul 2ul in
+    let r = U32.(b.(0ul) +%^ b.(1ul)) in
+    pop_frame ();
+    r
+  end
+
 let main (): Stack Int32.t (fun _ -> true) (fun _ _ _ -> true) =
   let s = simple () in
   TestLib.checku32 s 6ul;
@@ -202,4 +247,20 @@ let main (): Stack Int32.t (fun _ -> true) (fun _ _ _ -> true) =
   TestLib.checku32 sn1 31ul;
   let sn2 = shadow_nested_ite false 5ul in
   TestLib.checku32 sn2 52ul;
+  (* buf_create_fill: buffer filled with 42, read [0] *)
+  push_frame ();
+  let bf = buf_create_fill () in
+  TestLib.checku32 bf 42ul;
+  (* buf_create_write: buffer filled with 0, then [0]:=99 *)
+  let bw = buf_create_write () in
+  TestLib.checku32 bw 99ul;
+  (* buf_and_scalar: buffer filled with 10, read [0]+[1] *)
+  let bs = buf_and_scalar () in
+  TestLib.checku32 bs 20ul;
+  (* buf_in_branch: buffer in branch *)
+  let bb1 = buf_in_branch true in
+  TestLib.checku32 bb1 10ul;
+  let bb2 = buf_in_branch false in
+  TestLib.checku32 bb2 14ul;
+  pop_frame ();
   0l

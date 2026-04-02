@@ -45,7 +45,7 @@ let failwith fmt =
 
 (* The main error printing function. *)
 
-let flags = Array.make 30 CError;;
+let flags = Array.make 31 CError;;
 
 (* When adding a new user-configurable error, there are *several* things to
  * update:
@@ -112,6 +112,8 @@ let errno_of_error = function
       28
   | InitializerUnknownType _ ->
       29
+  | BufCreateLNotHoisted _ ->
+      30
   | _ ->
       (** Things that cannot be silenced! *)
       0
@@ -224,6 +226,9 @@ let rec perr buf (loc, raw_error) =
       p "Unrecognized C compiler: %s" cc
   | InitializerUnknownType name ->
       p "Cannot generate type-aware initializer for unknown type %s, using { 0 } as fallback" name
+  | BufCreateLNotHoisted lid ->
+      p "Stack-allocated buffer %a with per-element initializers cannot be hoisted \
+        to function top with -fhoist-locals; declaration stays in place" plid lid
 
 let maybe_fatal_error error =
   flush stdout;

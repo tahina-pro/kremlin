@@ -9,20 +9,33 @@ open PrintAst
 
 let debug = Options.debug "hoist-locals"
 
-(* Determines if an ELet binding involves stack storage that cannot be hoisted. *)
-let has_storage (t: typ) (e1: expr) =
-  match t, e1.node with
-  | TArray _, _
-  | _, EBufCreate (Stack, _, _)
-  | _, EBufCreateL (Stack, _) ->
+(* Determines if an ELet binding involves stack storage that cannot be hoisted
+   at all. Only non-empty EBufCreateL with per-element initializers cannot
+   be hoisted. *)
+let has_storage (_t: typ) (e1: expr) =
+  match e1.node with
+  | EBufCreateL (Stack, _ :: _) ->
       true
   | _ ->
       false
 
+(* Build the hoisted initializer expression for a binder.  For buffer
+   creations we keep an uninitialized buffer of the right size so that
+   later passes (hoist_bufcreate) see a proper EBufCreate node. *)
+let hoisted_init (b: binder) (e1: expr): expr =
+  match e1.node with
+  | EBufCreate (Stack, _, size) ->
+      { node = EBufCreate (Stack, { node = EAny; typ = Helpers.assert_tbuf_or_tarray b.typ; meta = [] }, size);
+        typ = b.typ; meta = [] }
+  | EBufCreateL (Stack, []) ->
+      e1
+  | _ ->
+      { node = EAny; typ = b.typ; meta = [] }
+
 (* Walk the expression tree, collecting ELet binders that should be hoisted
-   and replacing them with assignments. Returns the list of collected binders
-   (outermost first) and the transformed expression. *)
-let rec collect (e: expr): binder list * expr =
+   and replacing them with assignments. Returns the list of collected
+   (binder, init) pairs (outermost first) and the transformed expression. *)
+let rec collect (e: expr): (binder * expr) list * expr =
   let w n = { node = n; typ = e.typ; meta = e.meta } in
   match e.node with
   | ELet (b, e1, e2) when not (List.mem MetaSequence b.node.meta) ->
@@ -31,28 +44,47 @@ let rec collect (e: expr): binder list * expr =
       let bs1, e1 = collect e1 in
       (* Collect from the continuation *)
       let bs2, e2 = collect e2 in
-      if has_storage b.typ e1 then
-        (* Stack buffer / array: keep in place, don't hoist *)
+      if has_storage b.typ e1 then begin
+        (* Stack buffer with per-element initializers: keep in place, emit warning *)
+        (match e1.node with
+         | EBufCreateL (Stack, _ :: _) ->
+             Warn.maybe_fatal_error ("", Error.BufCreateLNotHoisted
+               ([""], b.node.name))
+         | _ -> ());
         let e2 = close_binder b e2 in
         bs1 @ bs2, w (ELet (b, e1, e2))
+      end
       else
         (* Hoist this binder *)
         let assignment =
-          if e1.node = EAny then
-            (* Already uninitialized: no assignment needed *)
-            e2
-          else
-            (* Replace with: let _ = b := e1 in e2 *)
-            w (ELet (Helpers.sequence_binding (),
-              { node = EAssign (
-                  { node = EOpen (b.node.name, b.node.atom); typ = b.typ; meta = [] },
-                  e1);
-                typ = TUnit; meta = [] },
-              e2))
+          match e1.node with
+          | EAny ->
+              (* Already uninitialized: no assignment needed *)
+              e2
+          | EBufCreate (Stack, { node = EAny; _ }, _)
+          | EBufCreateL (Stack, []) ->
+              (* Uninitialized buffer: no fill needed *)
+              e2
+          | EBufCreate (Stack, init, size) ->
+              (* Buffer with uniform initializer: replace with EBufFill *)
+              w (ELet (Helpers.sequence_binding (),
+                { node = EBufFill (
+                    { node = EOpen (b.node.name, b.node.atom); typ = b.typ; meta = [] },
+                    init, size);
+                  typ = TUnit; meta = [] },
+                e2))
+          | _ ->
+              (* Replace with: let _ = b := e1 in e2 *)
+              w (ELet (Helpers.sequence_binding (),
+                { node = EAssign (
+                    { node = EOpen (b.node.name, b.node.atom); typ = b.typ; meta = [] },
+                    e1);
+                  typ = TUnit; meta = [] },
+                e2))
         in
         (* Mark the binder as mutable since it will be assigned to *)
         let b = { b with node = { b.node with mut = true } } in
-        bs1 @ [b] @ bs2, assignment
+        bs1 @ [(b, hoisted_init b e1)] @ bs2, assignment
 
   | ELet (b, e1, e2) ->
       (* Sequence binding: collect from sub-expressions but don't hoist the binding *)
@@ -212,10 +244,10 @@ let rec collect (e: expr): binder list * expr =
 
 (* Wrap a body with hoisted declarations. The binders list is outermost-first,
    meaning the first binder in the list becomes the outermost ELet. *)
-let wrap_with_hoisted (binders: binder list) (body: expr): expr =
-  List.fold_right (fun b body ->
+let wrap_with_hoisted (binders: (binder * expr) list) (body: expr): expr =
+  List.fold_right (fun (b, init) body ->
     let body = close_binder b body in
-    { node = ELet (b, { node = EAny; typ = b.typ; meta = [] }, body);
+    { node = ELet (b, init, body);
       typ = body.typ;
       meta = [] }
   ) binders body

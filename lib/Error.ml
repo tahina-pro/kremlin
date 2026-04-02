@@ -37,6 +37,7 @@ and raw_error =
   | LibraryPointerAmbiguity of lident * expr
   | UnrecognizedCCompiler of string
   | InitializerUnknownType of string
+  | BufCreateLNotHoisted of lident
 
 and location =
   string
