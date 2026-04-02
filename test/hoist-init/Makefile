@@ -21,7 +21,7 @@ FILES		= $(patsubst %.fst,%.test,$(wildcard *.fst))
 
 CUSTOM		= check-hoist-ifdef \
   check-init-hoist check-init-hoist-c99 check-init-hoist-c89 \
-  check-merge-decl-init
+  check-merge-decl-init check-buf-vla
 
 all: $(FILES) $(CUSTOM)
 
@@ -66,6 +66,7 @@ $(OUTPUT_DIR)/HoistLocalsInline.exe: EXTRA = -fhoist-locals -fno-shadow
 $(OUTPUT_DIR)/HoistIfDef.exe: EXTRA = -fhoist-locals -fno-shadow -ccopt -DUSE_FEATURE
 $(OUTPUT_DIR)/InitLocals.exe: EXTRA = -finitialize-locals c23
 $(OUTPUT_DIR)/MergeDeclInit.exe: EXTRA = -fhoist-locals -fno-shadow
+$(OUTPUT_DIR)/HoistBufVla.exe: EXTRA = -fhoist-locals -fno-shadow -warn-error -31
 
 .PRECIOUS: $(OUTPUT_DIR)/%.exe
 $(OUTPUT_DIR)/%.exe: $(ALL_KRML_FILES) $(KRML_BIN)
@@ -161,6 +162,12 @@ check-merge-decl-init: $(OUTPUT_DIR)/MergeDeclInit.exe
 	# test_unused_and_comment: mixed skippables preserved, declarations merged
 	grep -q 'comment after ignore' $(OUTPUT_DIR)/MergeDeclInit.out/MergeDeclInit.c
 	@echo -e "\033[01;32m✔\033[00m [TEST,check-merge-decl-init]"
+
+# HoistBufVla: non-constant-size buffer stays in place (not hoisted)
+check-buf-vla: $(OUTPUT_DIR)/HoistBufVla.exe
+	# buffer declaration should NOT be at function top (it stays inside the body)
+	grep -q 'uint32_t b\[' $(OUTPUT_DIR)/HoistBufVla.out/HoistBufVla.c
+	@($^ && echo -e "\033[01;32m✔\033[00m [TEST,check-buf-vla]") || (echo -e "\033[01;31m✘\033[00m [TEST,check-buf-vla]" && false)
 
 clean:
 	rm -rf $(CACHE_DIR) $(OUTPUT_DIR) .depend
