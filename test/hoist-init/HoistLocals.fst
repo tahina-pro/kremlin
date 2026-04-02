@@ -222,6 +222,21 @@ let prefix_with_ignore (unused: U32.t) (arg: U32.t):
   let y = U32.(x +%^ x) in
   U32.(y +%^ x)
 
+(* Helper to exercise compound initializers *)
+let compute (a: U32.t) (b: U32.t): Stack U32.t (fun _ -> true) (fun _ _ _ -> true) =
+  U32.(a +%^ b)
+
+(* Prefix declaration whose initializer is a function call: the call may
+   produce a nested let-binding after inlining.  The prefix declaration and
+   its initializer must be left entirely in place. *)
+let prefix_compound_init (arg: U32.t): Stack U32.t (fun _ -> true) (fun _ _ _ -> true) =
+  let x = compute arg 1ul in
+  let y = U32.(x +%^ x) in
+  if U32.(y >^ 5ul) then
+    y
+  else
+    U32.(y +%^ 1ul)
+
 let main (): Stack Int32.t (fun _ -> true) (fun _ _ _ -> true) =
   let s = simple () in
   TestLib.checku32 s 6ul;
@@ -294,5 +309,11 @@ let main (): Stack Int32.t (fun _ -> true) (fun _ _ _ -> true) =
   (* prefix_with_ignore: x=2, y=4, ret=6 *)
   let pwi = prefix_with_ignore 99ul 1ul in
   TestLib.checku32 pwi 6ul;
+  (* prefix_compound_init: x=compute(0,1)=1, y=2, 2<=5 → 3 *)
+  let pci1 = prefix_compound_init 0ul in
+  TestLib.checku32 pci1 3ul;
+  (* prefix_compound_init: x=compute(5,1)=6, y=12, 12>5 → 12 *)
+  let pci2 = prefix_compound_init 5ul in
+  TestLib.checku32 pci2 12ul;
   pop_frame ();
   0l

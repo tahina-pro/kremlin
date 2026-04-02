@@ -58,17 +58,17 @@ let rec collect (in_prefix: bool) (e: expr): (binder * expr) list * expr =
   match e.node with
   | ELet (b, e1, e2) when not (List.mem MetaSequence b.node.meta) ->
       let b, e2 = open_binder b e2 in
-      if in_prefix then begin
-        (* Declaration in prefix: leave in place *)
-        let bs1, e1 = collect false e1 in
+      (* Collect from the initializer *)
+      let bs1, e1 = collect false e1 in
+      if in_prefix && bs1 = [] then begin
+        (* Clean prefix declaration: leave in place with its initializer *)
         let bs2, e2 = collect true e2 in
         let e2 = close_binder b e2 in
-        bs1 @ bs2, w (ELet (b, e1, e2))
+        bs2, w (ELet (b, e1, e2))
       end
       else begin
-        (* Collect from the initializer *)
-        let bs1, e1 = collect false e1 in
-        (* Collect from the continuation *)
+        (* Outside prefix (or initializer produced hoisted binders):
+           collect from the continuation and hoist this declaration. *)
         let bs2, e2 = collect false e2 in
         if has_storage b.typ e1 then begin
           (* Stack buffer that cannot be hoisted: emit appropriate warning *)
