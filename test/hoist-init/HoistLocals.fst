@@ -198,6 +198,30 @@ let buf_in_branch (flag: bool): Stack U32.t (fun _ -> true) (fun _ _ _ -> true) 
     r
   end
 
+(* Prefix preservation: declarations before the first non-declaration
+   statement stay in place with their initializers.  Only the branch-local
+   variables get hoisted. *)
+let prefix_then_branch (flag: bool) (arg: U32.t):
+    Stack U32.t (fun _ -> true) (fun _ _ _ -> true) =
+  let x = U32.(arg +%^ 1ul) in
+  let y = U32.(x +%^ x) in
+  let z = U32.(y +%^ 1ul) in
+  if flag then
+    U32.(z +%^ 10ul)
+  else begin
+    let w = U32.(z +%^ 20ul) in
+    U32.(w +%^ x)
+  end
+
+(* Prefix with an ignore (KRML_MAYBE_UNUSED_VAR) in the middle:
+   the ignore is transparent so declarations after it are still in prefix. *)
+let prefix_with_ignore (unused: U32.t) (arg: U32.t):
+    Stack U32.t (fun _ -> true) (fun _ _ _ -> true) =
+  LowStar.Ignore.ignore unused;
+  let x = U32.(arg +%^ 1ul) in
+  let y = U32.(x +%^ x) in
+  U32.(y +%^ x)
+
 let main (): Stack Int32.t (fun _ -> true) (fun _ _ _ -> true) =
   let s = simple () in
   TestLib.checku32 s 6ul;
@@ -262,5 +286,13 @@ let main (): Stack Int32.t (fun _ -> true) (fun _ _ _ -> true) =
   TestLib.checku32 bb1 10ul;
   let bb2 = buf_in_branch false in
   TestLib.checku32 bb2 14ul;
+  (* prefix_then_branch: x=1, y=2, z=3; true→13, false→24 *)
+  let ptb1 = prefix_then_branch true 0ul in
+  TestLib.checku32 ptb1 13ul;
+  let ptb2 = prefix_then_branch false 0ul in
+  TestLib.checku32 ptb2 24ul;
+  (* prefix_with_ignore: x=2, y=4, ret=6 *)
+  let pwi = prefix_with_ignore 99ul 1ul in
+  TestLib.checku32 pwi 6ul;
   pop_frame ();
   0l

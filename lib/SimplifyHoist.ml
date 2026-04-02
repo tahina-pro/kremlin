@@ -36,202 +36,226 @@ let hoisted_init (b: binder) (e1: expr): expr =
   | _ ->
       { node = EAny; typ = b.typ; meta = [] }
 
+(* Is a statement expression "transparent" for the declaration prefix?
+   Comments and EIgnore (which becomes KRML_MAYBE_UNUSED_VAR) don't end
+   the prefix of declarations at the top of a function body. *)
+let is_prefix_transparent (e: expr): bool =
+  match e.node with
+  | EStandaloneComment _ -> true
+  | EIgnore _ -> true
+  | _ -> false
+
 (* Walk the expression tree, collecting ELet binders that should be hoisted
    and replacing them with assignments. Returns the list of collected
-   (binder, init) pairs (outermost first) and the transformed expression. *)
-let rec collect (e: expr): (binder * expr) list * expr =
+   (binder, init) pairs (outermost first) and the transformed expression.
+
+   When [in_prefix] is true, we are scanning the prefix of declarations at
+   the top of the function body. Declarations in the prefix are left in
+   place (they are already at the top). The prefix ends at the first
+   sequential statement that is not a comment or EIgnore. *)
+let rec collect (in_prefix: bool) (e: expr): (binder * expr) list * expr =
   let w n = { node = n; typ = e.typ; meta = e.meta } in
   match e.node with
   | ELet (b, e1, e2) when not (List.mem MetaSequence b.node.meta) ->
       let b, e2 = open_binder b e2 in
-      (* Collect from the initializer *)
-      let bs1, e1 = collect e1 in
-      (* Collect from the continuation *)
-      let bs2, e2 = collect e2 in
-      if has_storage b.typ e1 then begin
-        (* Stack buffer that cannot be hoisted: emit appropriate warning *)
-        (match e1.node with
-         | EBufCreateL (Stack, _ :: _) ->
-             Warn.maybe_fatal_error ("", Error.BufCreateLNotHoisted
-               ([""], b.node.name))
-         | EBufCreate (Stack, _, _) ->
-             Warn.maybe_fatal_error ("", Error.BufCreateNonConstant
-               ([""], b.node.name))
-         | _ -> ());
+      if in_prefix then begin
+        (* Declaration in prefix: leave in place *)
+        let bs1, e1 = collect false e1 in
+        let bs2, e2 = collect true e2 in
         let e2 = close_binder b e2 in
         bs1 @ bs2, w (ELet (b, e1, e2))
       end
-      else
-        (* Hoist this binder *)
-        let assignment =
-          match e1.node with
-          | EAny ->
-              (* Already uninitialized: no assignment needed *)
-              e2
-          | EBufCreate (Stack, { node = EAny; _ }, _)
-          | EBufCreateL (Stack, []) ->
-              (* Uninitialized buffer: no fill needed *)
-              e2
-          | EBufCreate (Stack, init, size) ->
-              (* Buffer with uniform initializer: replace with EBufFill *)
-              w (ELet (Helpers.sequence_binding (),
-                { node = EBufFill (
-                    { node = EOpen (b.node.name, b.node.atom); typ = b.typ; meta = [] },
-                    init, size);
-                  typ = TUnit; meta = [] },
-                e2))
-          | _ ->
-              (* Replace with: let _ = b := e1 in e2 *)
-              w (ELet (Helpers.sequence_binding (),
-                { node = EAssign (
-                    { node = EOpen (b.node.name, b.node.atom); typ = b.typ; meta = [] },
-                    e1);
-                  typ = TUnit; meta = [] },
-                e2))
-        in
-        (* Mark the binder as mutable since it will be assigned to *)
-        let b = { b with node = { b.node with mut = true } } in
-        bs1 @ [(b, hoisted_init b e1)] @ bs2, assignment
+      else begin
+        (* Collect from the initializer *)
+        let bs1, e1 = collect false e1 in
+        (* Collect from the continuation *)
+        let bs2, e2 = collect false e2 in
+        if has_storage b.typ e1 then begin
+          (* Stack buffer that cannot be hoisted: emit appropriate warning *)
+          (match e1.node with
+           | EBufCreateL (Stack, _ :: _) ->
+               Warn.maybe_fatal_error ("", Error.BufCreateLNotHoisted
+                 ([""], b.node.name))
+           | EBufCreate (Stack, _, _) ->
+               Warn.maybe_fatal_error ("", Error.BufCreateNonConstant
+                 ([""], b.node.name))
+           | _ -> ());
+          let e2 = close_binder b e2 in
+          bs1 @ bs2, w (ELet (b, e1, e2))
+        end
+        else
+          (* Hoist this binder *)
+          let assignment =
+            match e1.node with
+            | EAny ->
+                (* Already uninitialized: no assignment needed *)
+                e2
+            | EBufCreate (Stack, { node = EAny; _ }, _)
+            | EBufCreateL (Stack, []) ->
+                (* Uninitialized buffer: no fill needed *)
+                e2
+            | EBufCreate (Stack, init, size) ->
+                (* Buffer with uniform initializer: replace with EBufFill *)
+                w (ELet (Helpers.sequence_binding (),
+                  { node = EBufFill (
+                      { node = EOpen (b.node.name, b.node.atom); typ = b.typ; meta = [] },
+                      init, size);
+                    typ = TUnit; meta = [] },
+                  e2))
+            | _ ->
+                (* Replace with: let _ = b := e1 in e2 *)
+                w (ELet (Helpers.sequence_binding (),
+                  { node = EAssign (
+                      { node = EOpen (b.node.name, b.node.atom); typ = b.typ; meta = [] },
+                      e1);
+                    typ = TUnit; meta = [] },
+                  e2))
+          in
+          (* Mark the binder as mutable since it will be assigned to *)
+          let b = { b with node = { b.node with mut = true } } in
+          bs1 @ [(b, hoisted_init b e1)] @ bs2, assignment
+      end
 
   | ELet (b, e1, e2) ->
       (* Sequence binding: collect from sub-expressions but don't hoist the binding *)
-      let bs1, e1 = collect e1 in
+      let prefix' = in_prefix && is_prefix_transparent e1 in
+      let bs1, e1 = collect false e1 in
       let b', e2 = open_binder b e2 in
-      let bs2, e2 = collect e2 in
+      let bs2, e2 = collect prefix' e2 in
       let e2 = close_binder b' e2 in
       bs1 @ bs2, w (ELet (b, e1, e2))
 
   | EIfThenElse (e1, e2, e3) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
-      let bs3, e3 = collect e3 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
+      let bs3, e3 = collect false e3 in
       bs1 @ bs2 @ bs3, w (EIfThenElse (e1, e2, e3))
 
   | EWhile (e1, e2) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
       bs1 @ bs2, w (EWhile (e1, e2))
 
   | EFor (b, e1, e2, e3, e4) ->
-      let bs1, e1 = collect e1 in
+      let bs1, e1 = collect false e1 in
       let b', e2 = open_binder b e2 in
       let b'', e3 = open_binder b e3 in
       let b''', e4 = open_binder b e4 in
-      let bs2, e2 = collect e2 in
-      let bs3, e3 = collect e3 in
-      let bs4, e4 = collect e4 in
+      let bs2, e2 = collect false e2 in
+      let bs3, e3 = collect false e3 in
+      let bs4, e4 = collect false e4 in
       let e2 = close_binder b' e2 in
       let e3 = close_binder b'' e3 in
       let e4 = close_binder b''' e4 in
       bs1 @ bs2 @ bs3 @ bs4, w (EFor (b, e1, e2, e3, e4))
 
   | ESwitch (e1, cases) ->
-      let bs1, e1 = collect e1 in
+      let bs1, e1 = collect false e1 in
       let bss, cases = List.split (List.map (fun (c, e) ->
-        let bs, e = collect e in
+        let bs, e = collect false e in
         bs, (c, e)
       ) cases) in
       bs1 @ List.concat bss, w (ESwitch (e1, cases))
 
   | EReturn e1 ->
-      let bs, e1 = collect e1 in
+      let bs, e1 = collect false e1 in
       bs, w (EReturn e1)
 
   | EAssign (e1, e2) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
       bs1 @ bs2, w (EAssign (e1, e2))
 
   | ECast (e1, t) ->
-      let bs, e1 = collect e1 in
+      let bs, e1 = collect false e1 in
       bs, w (ECast (e1, t))
 
   | EIgnore e1 ->
-      let bs, e1 = collect e1 in
+      let bs, e1 = collect false e1 in
       bs, w (EIgnore e1)
 
   | EApp (e1, es) ->
-      let bs1, e1 = collect e1 in
-      let bss, es = List.split (List.map collect es) in
+      let bs1, e1 = collect false e1 in
+      let bss, es = List.split (List.map (collect false) es) in
       bs1 @ List.concat bss, w (EApp (e1, es))
 
   | EBufRead (e1, e2) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
       bs1 @ bs2, w (EBufRead (e1, e2))
 
   | EBufCreate (l, e1, e2) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
       bs1 @ bs2, w (EBufCreate (l, e1, e2))
 
   | EBufCreateL (l, es) ->
-      let bss, es = List.split (List.map collect es) in
+      let bss, es = List.split (List.map (collect false) es) in
       List.concat bss, w (EBufCreateL (l, es))
 
   | EBufWrite (e1, e2, e3) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
-      let bs3, e3 = collect e3 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
+      let bs3, e3 = collect false e3 in
       bs1 @ bs2 @ bs3, w (EBufWrite (e1, e2, e3))
 
   | EBufSub (e1, e2) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
       bs1 @ bs2, w (EBufSub (e1, e2))
 
   | EBufDiff (e1, e2) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
       bs1 @ bs2, w (EBufDiff (e1, e2))
 
   | EBufBlit (e1, e2, e3, e4, e5) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
-      let bs3, e3 = collect e3 in
-      let bs4, e4 = collect e4 in
-      let bs5, e5 = collect e5 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
+      let bs3, e3 = collect false e3 in
+      let bs4, e4 = collect false e4 in
+      let bs5, e5 = collect false e5 in
       bs1 @ bs2 @ bs3 @ bs4 @ bs5, w (EBufBlit (e1, e2, e3, e4, e5))
 
   | EBufFill (e1, e2, e3) ->
-      let bs1, e1 = collect e1 in
-      let bs2, e2 = collect e2 in
-      let bs3, e3 = collect e3 in
+      let bs1, e1 = collect false e1 in
+      let bs2, e2 = collect false e2 in
+      let bs3, e3 = collect false e3 in
       bs1 @ bs2 @ bs3, w (EBufFill (e1, e2, e3))
 
   | EBufFree e1 ->
-      let bs, e1 = collect e1 in
+      let bs, e1 = collect false e1 in
       bs, w (EBufFree e1)
 
   | EField (e1, f) ->
-      let bs, e1 = collect e1 in
+      let bs, e1 = collect false e1 in
       bs, w (EField (e1, f))
 
   | EAddrOf e1 ->
-      let bs, e1 = collect e1 in
+      let bs, e1 = collect false e1 in
       bs, w (EAddrOf e1)
 
   | EFlat fieldexprs ->
       let fs, es = List.split fieldexprs in
-      let bss, es = List.split (List.map collect es) in
+      let bss, es = List.split (List.map (collect false) es) in
       List.concat bss, w (EFlat (List.combine fs es))
 
   | EMatch (flavor, e1, branches) ->
-      let bs1, e1 = collect e1 in
+      let bs1, e1 = collect false e1 in
       let bss, branches = List.split (List.map (fun (binders, pat, body) ->
         let binders, pat, body = open_branch binders pat body in
-        let bs, body = collect body in
+        let bs, body = collect false body in
         let pat, body = close_branch binders pat body in
         bs, (binders, pat, body)
       ) branches) in
       bs1 @ List.concat bss, w (EMatch (flavor, e1, branches))
 
   | ETuple es ->
-      let bss, es = List.split (List.map collect es) in
+      let bss, es = List.split (List.map (collect false) es) in
       List.concat bss, w (ETuple es)
 
   | ESequence es ->
-      let bss, es = List.split (List.map collect es) in
+      let bss, es = List.split (List.map (collect false) es) in
       List.concat bss, w (ESequence es)
 
   | EFun (_, _, _) ->
@@ -246,7 +270,7 @@ let rec collect (e: expr): (binder * expr) list * expr =
       [], e
 
   | ETApp (e1, cgs, cgs', ts) ->
-      let bs, e1 = collect e1 in
+      let bs, e1 = collect false e1 in
       bs, w (ETApp (e1, cgs, cgs', ts))
 
 (* Wrap a body with hoisted declarations. The binders list is outermost-first,
@@ -265,7 +289,7 @@ let hoist_visitor = object(_)
     if debug then
       KPrint.bprintf "Hoist locals: visiting %a\n%a\n" plid name ppexpr body;
     let binders, body = open_binders binders body in
-    let hoisted, body = collect body in
+    let hoisted, body = collect true body in
     let body = wrap_with_hoisted hoisted body in
     let body = close_binders binders body in
     DFunction (cc, flags, n_cgs, n, ret, name, binders, body)
