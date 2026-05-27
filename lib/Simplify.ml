@@ -2235,7 +2235,11 @@ let simplify2 ifdefs (files: file list): file list =
   let files = optimize_lets ~ifdefs files in
   let files = if Options.wasm () then files else fixup_while_tests#visit_files () files in
   let files = (new hoist)#visit_files [] files in
-  let files = if !Options.c89_scope then SimplifyC89.hoist_lets#visit_files (ref []) files else files in
+  let files =
+    if !Options.c89_scope then SimplifyC89.hoist_lets#visit_files (ref []) files
+    else if !Options.hoist_locals then SimplifyC89.hoist_locals#visit_files (ref []) files
+    else files
+  in
   let files = if Options.wasm () then files else fixup_hoist#visit_files () files in
   (* Disabled in Rust because this results in uninitialized variables *)
   let files = if Options.wasm () || Options.rust () then files else let_if_to_assign#visit_files () files in
