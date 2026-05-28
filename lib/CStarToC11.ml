@@ -788,7 +788,23 @@ and mk_stmt m (stmt: stmt): C.stmt list =
 
   | Decl (binder, e) ->
       let qs, spec, decl = mk_spec_and_declarator m binder.name binder.typ in
-      let init: init option = match e with Any -> None | _ -> Some (trim_trailing_zeros (struct_as_initializer m e)) in
+      let init: init option = match e with
+        | Any ->
+            (* Defensively initialize uninitialized pointer declarations
+             * to NULL. Such declarations are produced by hoisting
+             * passes (e.g. -fhoist-locals, let_if_to_assign) that
+             * split a pointer binding into an upfront [Decl (_, Any)]
+             * plus a later [Assign] at the original site. The NULL
+             * initializer is overwritten on every well-formed code
+             * path, but provides a safe default for static analyzers
+             * (MISRA) and for branches in which the original site is
+             * never reached. *)
+            begin match binder.typ with
+            | Pointer _ -> Some (InitExpr (Name "NULL"))
+            | _ -> None
+            end
+        | _ -> Some (trim_trailing_zeros (struct_as_initializer m e))
+      in
       [ Decl (qs, spec, None, None, { maybe_unused = false; target = None }, [ decl, None, init ]) ]
 
   | IfThenElse (false, e, b1, b2) ->
@@ -817,7 +833,7 @@ and mk_stmt m (stmt: stmt): C.stmt list =
   | Assign (Var x, _, Call (Op K.Sub, [ Var y; Constant (_, "1") ])) when x = y ->
       [ Expr (Op1 (PostDecr, Name x)) ]
 
-  | Assign (e1, t, BufCreate (Eternal, init, size)) ->
+  | Assign (e1, t, BufCreate ((Eternal | Heap), init, size)) ->
       let v = assert_var m e1 in
       (* Evil bug:
        *   x <- bufcreate 1 e[x]

@@ -29,7 +29,7 @@ KRML = $(KRML_BIN) -fstar $(FSTAR_EXE) $(TEST_OPTS)
 comma := ,
 
 # Tests where output must be identical with and without -fhoist-locals
-TESTS = HoistInt HoistArray HoistScope HoistVlaNoWarn HoistComment
+TESTS = HoistInt HoistArray HoistScope HoistVlaNoWarn HoistComment HoistMalloc
 
 # Tests that exercise the VLA warning (compiled with -warn-error -29)
 WARN_TESTS = HoistVlaWarn
@@ -37,10 +37,15 @@ WARN_TESTS = HoistVlaWarn
 # Tests that verify comment/declaration ordering in the generated C source
 ORDER_TESTS = HoistComment
 
+# Tests that verify the Option B decl/init split for non-Stack EBufCreate
+# (uninitialised pointer decl hoisted, allocation call left at original site)
+MALLOC_TESTS = HoistMalloc
+
 ALL_TESTS = $(TESTS) $(WARN_TESTS)
 
 all: $(addsuffix .compare,$(TESTS)) $(addsuffix .warn-test,$(WARN_TESTS)) \
-     $(addsuffix .order-test,$(ORDER_TESTS))
+     $(addsuffix .order-test,$(ORDER_TESTS)) \
+     $(addsuffix .malloc-test,$(MALLOC_TESTS))
 
 .PRECIOUS: %.krml $(OUTPUT_DIR)/%.krml
 
@@ -148,6 +153,40 @@ $(OUTPUT_DIR)/HoistVlaNoWarn.hoist.exe: EXTRA = -warn-error -6
 	else \
 	  echo -e "\033[01;31m✘\033[00m [ORDER,$*] comment/init order differs:"; \
 	  diff -u $(OUTPUT_DIR)/$*.nohoist.order $(OUTPUT_DIR)/$*.hoist.order; \
+	  false; \
+	fi
+
+# Malloc test: verify the Option B decl/init split for non-Stack EBufCreate.
+# Under -fhoist-locals, pointer declarations are hoisted as `T *buf = NULL;`
+# and the allocation call (KRML_HOST_CALLOC/MALLOC) is left at the original
+# site as `buf = KRML_HOST_CALLOC(...);`. Without -fhoist-locals, the same
+# declarations remain in their combined `T *buf = KRML_HOST_CALLOC(...);`
+# form.  We check:
+#   - The -fhoist-locals C contains at least one `*name = NULL;` line.
+#   - The -fhoist-locals C contains at least one `name = KRML_HOST_CALLOC`
+#     line where the `*` (declaration marker) is absent (i.e., a pure
+#     assignment, separated from the declaration).
+#   - The no-flag C contains zero `*name = NULL;` lines produced by the
+#     hoist pass.
+%.malloc-test: $(OUTPUT_DIR)/$$(notdir $$(subst .,_,$$*)).nohoist.exe $(OUTPUT_DIR)/$$(notdir $$(subst .,_,$$*)).hoist.exe
+	@echo "Checking Option B split for $*..."
+	@n_null_nohoist=$$(grep -cE '\*[a-zA-Z_][a-zA-Z0-9_]* = NULL;' \
+	  $(subst .exe,.out,$(word 1,$^))/$*.c || true); \
+	 n_null_hoist=$$(grep -cE '\*[a-zA-Z_][a-zA-Z0-9_]* = NULL;' \
+	  $(subst .exe,.out,$(word 2,$^))/$*.c || true); \
+	 n_assign_hoist=$$(grep -cE '^[[:space:]]*[a-zA-Z_][a-zA-Z0-9_]* = KRML_HOST_(CALLOC|MALLOC)' \
+	  $(subst .exe,.out,$(word 2,$^))/$*.c || true); \
+	 n_assign_nohoist=$$(grep -cE '^[[:space:]]*[a-zA-Z_][a-zA-Z0-9_]* = KRML_HOST_(CALLOC|MALLOC)' \
+	  $(subst .exe,.out,$(word 1,$^))/$*.c || true); \
+	 if [ "$$n_null_nohoist" -eq 0 ] && \
+	    [ "$$n_null_hoist" -gt 0 ] && \
+	    [ "$$n_assign_hoist" -gt 0 ] && \
+	    [ "$$n_assign_hoist" -gt "$$n_assign_nohoist" ]; then \
+	  echo -e "\033[01;32m✔\033[00m [MALLOC,$*] Option B split confirmed: $$n_null_hoist hoisted NULL decls, $$n_assign_hoist post-decl alloc calls (vs $$n_assign_nohoist without)"; \
+	else \
+	  echo -e "\033[01;31m✘\033[00m [MALLOC,$*] Option B split NOT confirmed:"; \
+	  echo "  *name = NULL; count   nohoist=$$n_null_nohoist hoist=$$n_null_hoist (expect nohoist=0, hoist>0)"; \
+	  echo "  name = KRML_HOST_*  count   nohoist=$$n_assign_nohoist hoist=$$n_assign_hoist (expect hoist > nohoist)"; \
 	  false; \
 	fi
 

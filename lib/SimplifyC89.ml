@@ -26,8 +26,13 @@ open Helpers
  *   nearest enclosing [EPushFrame] (or function top). Constant-size
  *   stack-allocated buffers are funnelled through [mk_copy_assignment]
  *   (which emits [EBufWrite]s, never [EBufCreate]s left under an
- *   assignment). VLAs trigger warning 29 ([HoistLocalsVla]) and are left
- *   in place. *)
+ *   assignment). Heap- and Eternal-allocated buffers ([B.malloc] /
+ *   [B.gcmalloc]) get their declaration hoisted (as [Decl (_, Any)],
+ *   lowered to [T *buf = NULL;]) while the allocation call itself stays
+ *   at the original site as [Assign (buf, BufCreate (l, init, size))].
+ *   Non-Stack [EBufCreateL] is left in place since [CStarToC11] does not
+ *   yet support [Assign (_, _, BufCreateL (Eternal | Heap, _))]. VLAs
+ *   trigger warning 29 ([HoistLocalsVla]) and are left in place. *)
 class hoist_lets_class (hoist_locals: bool) = object (self)
 
   inherit [_] map
@@ -108,15 +113,18 @@ class hoist_lets_class (hoist_locals: bool) = object (self)
         let e2 = self#visit_expr_w env e2 in
         ELet (b, e1, e2)
 
-    | EBufCreate (lifetime, _, _)
-      when lifetime <> Common.Stack || not hoist_locals ->
-        (* In C89 mode, leave all EBufCreate let-bindings in place
-         * (hoist_bufcreate will deal with them later, possibly wrapping in
-         * an implicit C block scope). In hoist-locals mode, only
-         * non-Stack EBufCreates are left alone: they are heap/eternal
-         * allocations whose [Assign(BufCreate _)] form would not be
-         * uniformly handled by [CStarToC11], so they retain their
-         * original let-binding. *)
+    | EBufCreate _
+      when not hoist_locals ->
+        (* C89 mode: leave all EBufCreate let-bindings in place
+         * (hoist_bufcreate will deal with Stack ones later, possibly
+         * wrapping in an implicit C block scope). *)
+        ELet (b, e1, self#scope_start t e2)
+
+    | EBufCreateL (lifetime, _) when lifetime <> Common.Stack ->
+        (* Non-Stack BufCreateL would lower (via the strengthen branch
+         * below) to [Assign (_, _, BufCreateL (Eternal | Heap, _))],
+         * which CStarToC11 cannot handle yet (failwith "TODO" at
+         * lib/CStarToC11.ml). Leave in place under both modes. *)
         ELet (b, e1, self#scope_start t e2)
 
     | _ ->
