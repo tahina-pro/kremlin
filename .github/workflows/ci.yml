@@ -45,7 +45,7 @@ jobs:
 
       # Build F* master.
       - run: opam update
-      - run: opam pin -n fstar --dev-repo
+      - run: opam pin add fstar git://github.com/FStarLang/fstar#fstar1
       - run: opam install fstar
 
       # Install karamel deps
